@@ -1,0 +1,15 @@
+# Test configuration.
+#
+# `pythonpath = ["."]` is what makes `pytest -q` work from a clean clone.
+#
+# Without it, pytest puts the first directory with no __init__.py on sys.path —
+# here that is tests/ — and not the repository root, so `from app.main import
+# app` fails with ModuleNotFoundError. Running `python -m pytest` happens to
+# work because Python itself prepends the working directory, which hides the
+# problem locally and surfaces it on CI.
+#
+# Fixed here rather than by changing the CI command, because the project README
+# tells a stranger to run `pytest -q` and that instruction should be true.
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -1,0 +1,43 @@
+# Runs on every pull request, so each PR carries a visible pass/fail check.
+#
+# Section 5.5.5 asks for "pull requests, checks, review feedback and merge
+# decisions". The check is the part that cannot be asserted in prose: a green
+# tick on a PR is evidence the tests actually ran against that change, dated
+# and attributable, rather than a claim that they were run locally.
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Check no secrets or data extracts are tracked
+        run: |
+          if git ls-files | grep -Ei '(^|/)\.env$|\.(xlsx|xls|csv|pkl|joblib)$'; then
+            echo "::error::a secret or data extract is tracked - see CONTRIBUTING.md"
+            exit 1
+          fi
+          echo "clean"
