@@ -12,9 +12,6 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -33,6 +30,12 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+      - name: Reproduce the measured baseline
+        # Fails the build if the baseline script breaks. The numbers in
+        # BASELINE.md are only trustworthy for as long as the script that
+        # produced them still runs.
+        run: python -m scripts.measure_baseline
 
       - name: Check no secrets or data extracts are tracked
         run: |
