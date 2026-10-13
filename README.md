@@ -87,7 +87,7 @@ Supervisor: Dr Vincent Ochango · Industry partner: Webmasters Kenya
 |---|---|
 | 1. Baseline | **Done** — measured, recorded in [`BASELINE.md`](BASELINE.md), live in `app/service.py` |
 | 2. Evaluation | **Done** — rolling-origin time split, `app/evaluate.py` |
-| 3. Model | Not started. Must beat **MAE 5137.9 / MAPE 13.79%** |
+| 3. Model | **Done** — `TwoShapeForecaster`, recorded in [`MODEL.md`](MODEL.md), live in `app/service.py` |
 | 4. Integration | Not started |
 
 **All numbers so far are from synthetic data.** The sandbox extract is not yet in `data/`,
@@ -101,14 +101,20 @@ app/
   service.py     POST /forecast; FORECASTER is the single swap point
   forecaster.py  the Forecaster interface and the two baselines
   evaluate.py    rolling-origin time split, metrics, noise floor
+  model.py       the shipped forecaster: fixed obligations + habitual rates
   data.py        real sandbox CSVs if present in data/, synthetic otherwise
   synthetic.py   the generator — labelled synthetic throughout
 scripts/
   measure_baseline.py   reproduces every number in BASELINE.md
+  compare_model.py      reproduces every number in MODEL.md (12 populations)
 tests/
   test_contract.py      the shape other teams rely on
-  test_forecasting.py   generator, baselines, and the anti-leakage guarantee
+  test_synthetic.py     the generator, and that it stays non-stationary
+  test_forecaster.py    the baselines
+  test_evaluation.py    the harness, and the anti-leakage guarantee
+  test_model.py         the model, paired across populations
 BASELINE.md      the number to beat, and where the removable error lives
+MODEL.md         what beat it, what did not, and why three components were cut
 ```
 
 ## Two things a stranger should know before reading the code
@@ -125,6 +131,12 @@ latent monthly expectation each household-month was drawn from, which gives an i
 noise floor of MAE 4389.7 against the baseline's 5137.9. A model reaching 4400 has
 extracted essentially all available signal; one reporting 2000 has a leak. See
 [`BASELINE.md`](BASELINE.md).
+
+**No forecasting claim rests on one population.** Component effects here are around 40 KES
+and the standard deviation of the MAE difference between two forecasters on a single
+population is 50-110 KES, so a single-population comparison cannot tell an improvement
+from a lucky draw. Every figure in [`MODEL.md`](MODEL.md) is paired across 12 populations.
+Measuring on one population first suggested three components worked that do not.
 
 ## Contract notes
 
@@ -150,8 +162,9 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
 uvicorn app.main:app --reload --port 8000    # http://localhost:8000/docs
-pytest -q                                   # 22 tests
+pytest -q                                   # 49 tests
 python3 -m scripts.measure_baseline          # reproduce BASELINE.md
+python3 -m scripts.compare_model             # reproduce MODEL.md (slow)
 ```
 
 With no CSV in `data/`, the service generates its own synthetic population on first
