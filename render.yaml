@@ -1,0 +1,38 @@
+# Render blueprint for budget-forecast (U-CS 37).
+#
+# Render builds the image from the Dockerfile on its own machines, so no local
+# Docker installation is needed to deploy — which is why this is the
+# recommended route rather than building and pushing an image by hand.
+#
+# To use: Render dashboard -> New -> Blueprint -> pick this repository. Render
+# reads this file, builds, and gives a URL of the form
+# https://budget-forecast-XXXX.onrender.com
+#
+# THE FREE PLAN SLEEPS. After about 15 minutes without traffic the instance is
+# spun down, and the next request takes roughly 50 seconds while it restarts.
+# That matters in two specific places and is worth planning around rather than
+# discovering live:
+#
+#   A demo or defence. Send one request a minute or two beforehand to wake it.
+#   U-CS 38's integration. A cold start may look like a timeout to them, so
+#   Benjamin should know the service is on a free plan.
+#
+# No environment variables are set here. The service runs on synthetic data
+# until a staging extract is present, and it needs no credentials to do that.
+# When the extract arrives, the data belongs in a mounted disk or an object
+# store, NOT in the image and NOT in this file.
+
+services:
+  - type: web
+    name: budget-forecast
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt          # closest Render region to Kenya
+    branch: main
+    autoDeploy: true
+
+    # Render assigns a port and injects it as $PORT; the Dockerfile's CMD
+    # reads it. A container listening on a hardcoded port fails this check and
+    # is killed, which is the commonest way a working image fails to deploy.
+    healthCheckPath: /health
