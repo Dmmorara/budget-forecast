@@ -1,11 +1,31 @@
 """
 Where spending history comes from.
 
-Two sources, one shape. Real sandbox CSVs if they are present in `data/`,
+Two sources, one shape. Sandbox CSVs if they are present in `data/`, locally
 generated data otherwise. Everything downstream — baseline, evaluation, model,
-service — works on the canonical columns in `app.synthetic.RECORD_COLUMNS` and
-cannot tell the two apart except through the `is_synthetic` flag, which is
-carried on every row and surfaced on every API response.
+service — works on the canonical columns in `app.synthetic.RECORD_COLUMNS`.
+
+BOTH SOURCES ARE SYNTHETIC, AND THE FLAG SAYS SO FOR BOTH
+----------------------------------------------------------
+The staging sandbox does not contain real household spending. The Webmasters
+supervisor confirmed on 14 October 2026: "All synthetic, say so in the report."
+
+An earlier version of this module set `is_synthetic = False` as soon as a CSV
+appeared in `data/`, on the assumption that a real file meant real data. That
+would have made the service start asserting its forecasts described real
+households the moment the extract was loaded — while the underlying numbers
+were still generated. The project rule is stated three separate ways in the
+partner's README, and this is the one place in the codebase where breaking it
+would be invisible: everything would look more credible, not less.
+
+`PROVENANCE` records WHICH synthetic source is in use, because that does matter
+for the report — a figure from the platform's sandbox is evidence about the
+platform's data model, while one from `app/synthetic.py` is evidence only about
+a generator written for this project. Neither is evidence about a real person.
+
+If the platform ever supplies genuinely real data, `SANDBOX_IS_SYNTHETIC` is
+the single line to change, and it should be changed only on written
+confirmation.
 
 ON THE COLUMN MAPPING
 ---------------------
@@ -35,7 +55,14 @@ SPENDING_RECORDS = DATA_DIR / "spending_records.csv"
 # Candidate source column names for each canonical column, in priority order.
 # Extend as the real schema becomes known rather than renaming columns by hand.
 COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
-    "user_id": ("user_id", "userId", "household_id", "householdId", "user"),
+    # user_profile_id comes first deliberately. households.csv carries BOTH
+    # user_profile_id and user_id, and spending_records joins on the profile
+    # id — so matching "user_id" first would silently key the two files on
+    # different columns and produce households with no spending history.
+    "user_id": (
+        "user_profile_id", "userProfileId",
+        "user_id", "userId", "household_id", "householdId", "user",
+    ),
     "occurred_on": (
         "occurred_on",
         "occurredAt",
@@ -46,8 +73,13 @@ COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
         "spent_at",
     ),
     "category": ("category", "category_name", "budget_category", "categoryName"),
-    "amount": ("amount", "value", "total", "amount_kes"),
+    "amount": ("amount_kes", "amount", "value", "total"),
 }
+
+
+# The staging sandbox is generated data, per the supervisor. Changing this to
+# False is an assertion that the extract describes real households.
+SANDBOX_IS_SYNTHETIC = True
 
 
 class SchemaMismatch(RuntimeError):
@@ -99,15 +131,25 @@ def _adapt(raw: pd.DataFrame, source: str) -> pd.DataFrame:
         print(f"[data] {source}: excluded {negatives} non-positive rows (refunds/reversals)")
     df = df[df["amount"] > 0]
 
-    df["is_synthetic"] = False
+    df["is_synthetic"] = SANDBOX_IS_SYNTHETIC
     return df[RECORD_COLUMNS].reset_index(drop=True)
 
 
+def provenance() -> str:
+    """Which synthetic source is in use. For the report, not for the contract."""
+    return "platform-sandbox" if SPENDING_RECORDS.exists() else "local-generator"
+
+
 def load_records() -> tuple[pd.DataFrame, bool]:
-    """Returns `(records, is_synthetic)`."""
+    """
+    Returns `(records, is_synthetic)`.
+
+    `is_synthetic` is True for both sources — see the module docstring. Use
+    `provenance()` when the distinction between them matters.
+    """
     if SPENDING_RECORDS.exists():
         raw = pd.read_csv(SPENDING_RECORDS)
-        return _adapt(raw, SPENDING_RECORDS.name), False
+        return _adapt(raw, SPENDING_RECORDS.name), SANDBOX_IS_SYNTHETIC
 
     records, _truth = generate()
     return records, True

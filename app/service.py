@@ -6,19 +6,23 @@ app/schemas.py did not change when it moved. That is the point of keeping the
 swap to one name: the inside can be replaced completely while every consumer
 sees the same shape.
 
-It has moved once, from the baseline to the model, and only after the model was
-shown to beat the baseline across 12 independent populations:
+It has moved twice. First from the trailing median to the two-shape model,
+which beat it across 12 synthetic populations. Then back off the model when the
+sandbox extract arrived and the model turned out to be significantly worse on
+real sandbox data — and on to the trailing mean, which beats both.
 
-    baseline:trailing_median_6m    MAE 5137.9    MAPE 13.79%   (BASELINE.md)
-    model:two_shape                MAE -97.7 / -37.1 paired     (MODEL.md)
-    irreducible noise floor        MAE 4389.7    MAPE 12.74%
+    on the SANDBOX extract, 500 households, last 3 months held out:
+      baseline:trailing_median_6m   MAE 9413.5   catMAE 2102.4
+      model:two_shape               MAE 9352.2   catMAE 2121.6   (worse, t +5.25)
+      baseline:trailing_mean_all    MAE 9011.6   catMAE 1948.6   (t -2.25 / -9.62)
+      best constant fitted on the test months (unreachable)
+                                    MAE 7163.9   catMAE 1482.8
 
-The margins are modest and honestly so. Against the bar the project README
-actually sets — "beats same as last month" — the margin is roughly 1,400 KES
-and holds on every population tested.
+Roughly 79% of the remaining error is irreducible under any constant-mean
+model, and the sandbox contains no temporal structure to do better with.
 
-If the model ever needs backing out, `FORECASTER = TrailingMedianForecaster(6)`
-restores the measured baseline and no consumer notices.
+That the swap point survived two reversals without the contract changing is
+the argument for having one.
 
 Because the forecaster is a stateless function of history, the only thing this
 module does is pick the history, call it, and shape the result into the
@@ -28,13 +32,18 @@ contract. There is no fitted state to go stale between requests.
 from __future__ import annotations
 
 from app.data import load_monthly
-from app.forecaster import Forecast
-from app.model import TwoShapeForecaster
+from app.forecaster import Forecast, TrailingMeanForecaster
 from app.schemas import Request, Response
 
-# The single swap point. See MODEL.md for the evidence that this beats the
-# baseline, and the three components that were measured and rejected.
-FORECASTER = TwoShapeForecaster()
+# The single swap point. SANDBOX_RESULTS.md has the evidence.
+#
+# This is the per-category mean over the household's whole history. It is not
+# a model, and that is the finding rather than a shortfall: monthly spend in
+# the sandbox has a lag-1 autocorrelation of about -0.07, so months are
+# independent draws and the sample mean is the efficient estimator. The
+# two-shape model is measurably WORSE on this data (catMAE t = +5.25), because
+# it corrects for structure the data does not contain.
+FORECASTER = TrailingMeanForecaster(0)
 
 
 def _history_before(monthly, year: int, month: int):

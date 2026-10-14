@@ -274,3 +274,70 @@ class TrailingMedianForecaster:
             risk_flag=risk_flag,
             method=self.name,
         )
+
+
+class TrailingMeanForecaster:
+    """
+    Per-category mean over the household's whole history.
+
+    Added after the sandbox extract showed that monthly spend per
+    household-category has a lag-1 autocorrelation of about -0.07 — months are
+    independent draws around a constant mean, with no trend, seasonality or
+    persistence. Under that process the sample mean over ALL available history
+    is the minimum-variance estimator of next month, and a median over a
+    6-month window is doubly handicapped: less efficient than the mean for
+    symmetric noise, and discarding two thirds of the evidence.
+
+    This is not a model. It is the correct estimator for a process with no
+    temporal structure, and it is reported as such. The trailing median remains
+    the better choice wherever spend is heavy-tailed, because one anomalous
+    month moves a mean and not a median — which is why both are kept and the
+    comparison is made on the data rather than assumed.
+    """
+
+    name = "baseline:trailing_mean_all"
+
+    def __init__(self, window: int = 0):
+        self.window = window
+        if window:
+            self.name = f"baseline:trailing_mean_{window}m"
+
+    def forecast(
+        self, history: pd.DataFrame, user_id: str, year: int, month: int
+    ) -> Forecast:
+        hist = _user_history(history, user_id)
+        table = _pivot(hist)
+        if table.empty:
+            return _insufficient(self.name)
+
+        n_months = len(table)
+        window = table.iloc[-self.window :] if self.window else table
+
+        per_category = window.mean(axis=0)
+        breakdown = {c: round(float(v), 2) for c, v in per_category.items() if v > 0.005}
+        total = round(float(per_category.sum()), 2)
+
+        if n_months < MIN_MONTHS_FOR_FORECAST:
+            return Forecast(
+                total=total, breakdown=breakdown, confidence=0.0,
+                risk_flag="insufficient_history", method=self.name,
+            )
+
+        monthly = table.sum(axis=1)
+        mean_total = float(monthly.mean())
+        cv = float(monthly.std(ddof=1) / mean_total) if mean_total > 0 else 0.0
+        confidence = round(_confidence_from_cv(cv) * _evidence(n_months), 4)
+
+        low = float(np.percentile(monthly, 10))
+        high = float(np.percentile(monthly, 90))
+        slack = (1.0 - _evidence(n_months)) * max(total, 1.0) * 0.5
+        low = max(0.0, min(low, total) - slack)
+        high = max(high, total) + slack
+
+        rel_width = (high - low) / total if total > 0 else float("inf")
+        return Forecast(
+            total=total, breakdown=breakdown, confidence=confidence,
+            low=round(low, 2), high=round(high, 2),
+            risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
+            method=self.name,
+        )
