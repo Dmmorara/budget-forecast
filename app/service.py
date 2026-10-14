@@ -1,20 +1,24 @@
 """
 U-CS 37 — the logic behind POST /forecast.
 
-STEP 1 IS THE BASELINE, and this is it: a per-category trailing median over the
-household's last six months, with an empirical interval.
+`FORECASTER` below is the single swap point, and the contract in
+app/schemas.py did not change when it moved. That is the point of keeping the
+swap to one name: the inside can be replaced completely while every consumer
+sees the same shape.
 
-Measured on held-out months before being wired in, as the order of work
-requires. The numbers are recorded in BASELINE.md at the repo root, and the
-short version is:
+It has moved once, from the baseline to the model, and only after the model was
+shown to beat the baseline across 12 independent populations:
 
-    baseline:trailing_median_6m    MAE 5137.9    MAPE 13.79%    coverage 80.0%
+    baseline:trailing_median_6m    MAE 5137.9    MAPE 13.79%   (BASELINE.md)
+    model:two_shape                MAE -97.7 / -37.1 paired     (MODEL.md)
     irreducible noise floor        MAE 4389.7    MAPE 12.74%
 
-A model replaces `FORECASTER` below only once it has beaten those numbers on
-the same held-out months, and the contract in app/schemas.py does not change
-when it does. That is the point of keeping the swap to a single name: the
-inside can be replaced completely while every consumer sees the same shape.
+The margins are modest and honestly so. Against the bar the project README
+actually sets — "beats same as last month" — the margin is roughly 1,400 KES
+and holds on every population tested.
+
+If the model ever needs backing out, `FORECASTER = TrailingMedianForecaster(6)`
+restores the measured baseline and no consumer notices.
 
 Because the forecaster is a stateless function of history, the only thing this
 module does is pick the history, call it, and shape the result into the
@@ -24,11 +28,13 @@ contract. There is no fitted state to go stale between requests.
 from __future__ import annotations
 
 from app.data import load_monthly
-from app.forecaster import Forecast, TrailingMedianForecaster
+from app.forecaster import Forecast
+from app.model import TwoShapeForecaster
 from app.schemas import Request, Response
 
-# The single swap point. Replace with the model once it beats BASELINE.md.
-FORECASTER = TrailingMedianForecaster(window=6)
+# The single swap point. See MODEL.md for the evidence that this beats the
+# baseline, and the three components that were measured and rejected.
+FORECASTER = TwoShapeForecaster()
 
 
 def _history_before(monthly, year: int, month: int):
