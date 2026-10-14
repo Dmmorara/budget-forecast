@@ -88,7 +88,7 @@ Supervisor: Dr Vincent Ochango · Industry partner: Webmasters Kenya
 | 1. Baseline | **Done** — measured, recorded in [`BASELINE.md`](BASELINE.md), live in `app/service.py` |
 | 2. Evaluation | **Done** — rolling-origin time split, `app/evaluate.py` |
 | 3. Model | **Done** — `TwoShapeForecaster`, recorded in [`MODEL.md`](MODEL.md), live in `app/service.py` |
-| 4. Integration | Not started |
+| 4. Integration | Dockerfile deploy-ready; `render.yaml` blueprint; awaiting a live URL |
 
 **All numbers so far are from synthetic data.** The sandbox extract is not yet in `data/`,
 and every response carries `isSynthetic: true` until it is.
@@ -107,6 +107,7 @@ app/
 scripts/
   measure_baseline.py   reproduces every number in BASELINE.md
   compare_model.py      reproduces every number in MODEL.md (12 populations)
+  smoke_test.py         checks a deployed URL answers the contract
 tests/
   test_contract.py      the shape other teams rely on
   test_synthetic.py     the generator, and that it stays non-stationary
@@ -169,3 +170,34 @@ python3 -m scripts.compare_model             # reproduce MODEL.md (slow)
 
 With no CSV in `data/`, the service generates its own synthetic population on first
 request, so it runs with no setup and no credentials.
+
+## Deploy it
+
+Render builds the image itself, so no local Docker installation is needed:
+
+1. Render dashboard → **New** → **Blueprint** → select this repository.
+2. Render reads [`render.yaml`](render.yaml), builds the Dockerfile and assigns a URL.
+3. Verify it, then send the URL to Benjamin for `BUDGET_FORECAST_SERVICE_URL`:
+
+```bash
+python3 -m scripts.smoke_test https://budget-forecast-xxxx.onrender.com
+```
+
+That checks the contract three other teams depend on, not just that the process is
+up — including that `POST /forecast {}` is a 422 and that `breakdown` sums to
+`estimatedTotal`.
+
+**The free plan sleeps** after ~15 minutes idle, and the next request takes about 50
+seconds. Send one request a few minutes before any demo, and tell Benjamin, because
+a cold start looks like a timeout from the calling side.
+
+To build locally instead (needs Docker Desktop):
+
+```bash
+docker build -t budget-forecast .
+docker run --rm -e PORT=8000 -p 8000:8000 budget-forecast
+```
+
+[`.dockerignore`](.dockerignore) keeps `.env`, `venv/` and the test suite out of the
+image. Without it `COPY . .` would bake any `.env` into a layer, where `docker history`
+exposes it even if a later layer deletes the file.

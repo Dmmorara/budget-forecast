@@ -1,0 +1,58 @@
+# What must never reach the image.
+#
+# The Dockerfile does `COPY . .`, so without this file the build context is the
+# whole working tree. Two consequences, one merely wasteful and one serious:
+#
+#   venv/ is 322 MB of host-platform wheels that the image rebuilds anyway from
+#   requirements.txt. Copying it inflates the image and can shadow correctly
+#   built packages with ones compiled for a different platform.
+#
+#   .env would be copied in. A credential baked into an image is exposed to
+#   anyone who can pull or inspect it, and `docker history` will show it even
+#   if a later layer deletes the file. That is the same failure as committing
+#   a secret to git, and the project rules are explicit about it.
+#
+# Everything excluded here is either rebuilt inside the image or has no
+# business in a running service.
+
+# Secrets — the important one
+.env
+.env.*
+!.env.example
+
+# Virtualenvs: rebuilt from requirements.txt inside the image
+venv/
+.venv/
+env/
+
+# Version control and CI
+.git/
+.github/
+.gitignore
+
+# Data extracts. Staging data is mounted or fetched at runtime, never baked in.
+data/*.csv
+data/*.json
+
+# Tests and development tooling: the image runs the service, it does not test it.
+# CI runs the suite against the source, which is the right place for it.
+tests/
+scripts/
+.pytest_cache/
+.mypy_cache/
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Documentation — useful in the repo, dead weight in a container
+*.md
+!README.md
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
