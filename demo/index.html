@@ -1,31 +1,358 @@
 <!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>budget-forecast — demo</title>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>budget-forecast</title>
+<!--
+  U-CS 37 demo console.
+
+  Two deliberate constraints:
+
+  No external fonts, scripts or styles. This has to render at a defence on a
+  room's wifi, or none, and inside a container with no egress.
+
+  The interval is the hero, not the point estimate. The service's defining
+  property is that it answers with a range whose width varies from 28% of the
+  forecast for a steady household to 120% for an erratic one. A page that
+  leads with a single number would hide exactly the thing the forecaster works
+  hardest to get right.
+-->
 <style>
- body{font:15px/1.6 Georgia,serif;max-width:680px;margin:40px auto;padding:0 20px;color:#1a1a1a}
- h1{font-size:22px;color:#16314d;margin-bottom:2px} .s{color:#6b6b6b;font-style:italic;margin-top:0}
- textarea{width:100%;height:110px;font:12px Courier,monospace;padding:10px;
-   border:1px solid #d4cfc7;border-radius:4px}
- button{font:600 14px system-ui;background:#16314d;color:#fff;border:0;border-radius:4px;
-   padding:9px 18px;cursor:pointer;margin-top:10px}
- pre{background:#f2f1ee;border:1px solid #d4cfc7;border-radius:4px;padding:12px;
-   font-size:12px;overflow-x:auto;white-space:pre-wrap}
+  :root {
+    --ink:   #10243a;
+    --paper: #eceeed;
+    --card:  #f7f8f7;
+    --rule:  #c2c9c5;
+    --quiet: #5e6b66;
+    --band:  #2f6f5e;
+    --flag:  #8a4b12;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* .field sets display:flex, which outranks the [hidden] attribute's own
+     display:none. Without this the optional ID field is permanently visible. */
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    padding: 0 20px 80px;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  header { padding: 40px 0 0; }
+  h1 { margin: 0; font-size: 27px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { margin: 2px 0 0; color: var(--quiet); font-size: 15px; }
+
+  .synthetic {
+    margin: 22px 0 0;
+    padding: 11px 14px;
+    background: var(--card);
+    border-left: 3px solid var(--flag);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin: 30px 0 0;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.grow { flex: 1 1 260px; min-width: 0; }
+  label { font-size: 13.5px; color: var(--quiet); }
+  select, input, button {
+    font: inherit;
+    font-size: 15px;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: #fff;
+    color: var(--ink);
+    min-width: 0;
+  }
+  input[type="number"] { width: 92px; }
+  button {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+    cursor: pointer;
+    padding: 9px 20px;
+  }
+  button:hover { background: #1a3652; }
+  :focus-visible { outline: 2px solid var(--band); outline-offset: 2px; }
+
+  .state { margin: 36px 0 0; color: var(--quiet); font-size: 15.5px; }
+  .state.error { color: var(--flag); }
+
+  #result[hidden] { display: none; }
+
+  .lede { margin: 38px 0 0; font-size: 20px; line-height: 1.45; }
+  .lede b { font-weight: 600; }
+
+  /* The band. Zero-based, so both position and width carry meaning. */
+  .scale { margin: 22px 0 0; }
+  .track {
+    position: relative;
+    height: 46px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+  }
+  .range { position: absolute; top: 0; bottom: 0; background: var(--band); opacity: .32; }
+  .range.wide { background: var(--flag); opacity: .26; }
+  .point { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--ink); }
+  .ticks {
+    display: flex; justify-content: space-between;
+    margin: 7px 0 0; font-size: 13.5px; color: var(--quiet);
+  }
+  .caption { margin: 10px 0 0; font-size: 14.5px; color: var(--quiet); }
+
+  table { width: 100%; border-collapse: collapse; margin: 34px 0 0; }
+  caption {
+    text-align: left; font-size: 14px; color: var(--quiet);
+    padding: 0 0 9px; border-bottom: 1px solid var(--rule);
+  }
+  td { padding: 7px 0; border-bottom: 1px solid #dfe3e1; vertical-align: middle; }
+  td.name { width: 38%; }
+  td.bar { width: 42%; padding-right: 14px; }
+  td.val { text-align: right; width: 20%; }
+  .fill { height: 9px; background: var(--band); opacity: .55; min-width: 1px; }
+
+  dl.meta {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 18px 24px; margin: 34px 0 0; padding: 18px 0 0;
+    border-top: 1px solid var(--rule);
+  }
+  dt { font-size: 13.5px; color: var(--quiet); margin: 0 0 2px; }
+  dd { margin: 0; font-size: 16px; }
+  dd.flagged { color: var(--flag); }
+
+  footer {
+    margin: 46px 0 0; padding: 16px 0 0;
+    border-top: 1px solid var(--rule);
+    font-size: 14px; color: var(--quiet);
+  }
+  footer code { font-size: 13.5px; }
+
+  @media (max-width: 560px) {
+    .lede { font-size: 18px; }
+    td.bar { display: none; }
+    td.name { width: 62%; }
+    td.val { width: 38%; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-<h1>budget-forecast</h1>
-<p class="s">U-CS 37 — AI Lifestyle Budgeting & Cost Modeling</p>
-<textarea id="in">{ "userId": "...", "month": 6, "year": 2026 }</textarea>
-<button onclick="go()">Send</button>
-<pre id="out">POST /forecast</pre>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>budget-forecast</h1>
+    <p class="sub">U-CS 37 &middot; what a household is likely to spend next month</p>
+  </header>
+
+  <p class="synthetic">
+    Every figure here is synthetic. The staging sandbox is generated data, so no
+    number on this page describes a real household or a real shilling.
+  </p>
+
+  <form id="form">
+    <div class="field grow">
+      <label for="user">Household</label>
+      <select id="user">
+        <option value="39baa149-c426-446f-987b-eac54b193d8b">Steady spender — narrow range</option>
+        <option value="1a29c0a0-cbb0-4059-bacf-ed42ebe8e5e9">High spender — narrow range</option>
+        <option value="2f9ddb6f-10b8-4e99-a1e8-3c9618e1ed8e">Erratic spender — flagged volatile</option>
+        <option value="15b13302-34a5-4550-afee-72e9e514789f">Most erratic in the sandbox</option>
+        <option value="__custom">Another household ID…</option>
+      </select>
+    </div>
+    <div class="field grow" id="customWrap" hidden>
+      <label for="custom">Household ID</label>
+      <input id="custom" type="text" placeholder="user_profile_id" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="month">Month</label>
+      <input id="month" type="number" min="1" max="12" value="10">
+    </div>
+    <div class="field">
+      <label for="year">Year</label>
+      <input id="year" type="number" min="2000" max="2100" value="2026">
+    </div>
+    <div class="field"><button type="submit">Forecast</button></div>
+  </form>
+
+  <p class="state" id="state">Pick a household and a month, then forecast.</p>
+
+  <section id="result" hidden aria-live="polite">
+    <p class="lede" id="lede"></p>
+
+    <div class="scale">
+      <div class="track" id="track">
+        <div class="range" id="range"></div>
+        <div class="point" id="point"></div>
+      </div>
+      <div class="ticks"><span>0</span><span id="tickMax"></span></div>
+      <p class="caption" id="caption"></p>
+    </div>
+
+    <table>
+      <caption id="tableCaption">Where it goes</caption>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <dl class="meta">
+      <div><dt>Confidence</dt><dd id="confidence"></dd></div>
+      <div><dt>Risk flag</dt><dd id="flag"></dd></div>
+      <div><dt>Method</dt><dd id="method"></dd></div>
+    </dl>
+  </section>
+
+  <footer>
+    <p>
+      <code>POST /forecast</code> at <code id="api"></code>.
+      Start the service with <code>uvicorn app.main:app --port 8000</code>,
+      or read the generated docs at <code>/docs</code>.
+    </p>
+  </footer>
+
+</div>
+
 <script>
-const API = 'http://localhost:8000';
-async function go() {
-  const out = document.getElementById('out');
-  out.textContent = 'working...';
-  try {
-    const r = await fetch(API + '/forecast', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: document.getElementById('in').value });
-    out.textContent = JSON.stringify(await r.json(), null, 2);
-  } catch (e) { out.textContent = 'Error: ' + e.message + '\n\nIs the service running?'; }
-}
+  // The API serves this page, so same origin is right whenever it arrived over
+  // http(s) — including the deployed URL. Opened straight off the file system
+  // it falls back to a local service. Nothing to configure before a demo; the
+  // resolved URL is printed in the footer so a wrong guess is visible.
+  const API = location.protocol.startsWith('http')
+    ? location.origin
+    : 'http://localhost:8000';
+  document.getElementById('api').textContent = API;
+
+  const $ = id => document.getElementById(id);
+  const kes = n => Math.round(n).toLocaleString('en-KE');
+  const MONTHS = ['January','February','March','April','May','June','July',
+                  'August','September','October','November','December'];
+
+  function niceMax(value) {
+    const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+    const step = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]
+      .find(s => s * magnitude >= value) || 10;
+    return step * magnitude;
+  }
+
+  $('user').addEventListener('change', e => {
+    const custom = e.target.value === '__custom';
+    $('customWrap').hidden = !custom;
+    if (custom) $('custom').focus();
+  });
+
+  function chosenUser() {
+    const v = $('user').value;
+    return v === '__custom' ? $('custom').value.trim() : v;
+  }
+
+  function setState(text, isError) {
+    const el = $('state');
+    el.textContent = text;
+    el.className = isError ? 'state error' : 'state';
+    el.hidden = false;
+    $('result').hidden = true;
+  }
+
+  function render(data, month, year) {
+    const { estimatedTotal: total, estimatedTotalLow: low,
+            estimatedTotalHigh: high, breakdown, confidence, riskFlag } = data;
+
+    $('state').hidden = true;
+    $('result').hidden = false;
+
+    const hasRange = low !== null && high !== null;
+
+    $('lede').innerHTML = hasRange
+      ? `Likely to spend between <b>KSh ${kes(low)}</b> and <b>KSh ${kes(high)}</b>
+         in ${MONTHS[month - 1]} ${year}.`
+      : `No forecast for ${MONTHS[month - 1]} ${year} — not enough history yet.`;
+
+    // Zero-based scale, so a wide band looks wide and a household's position
+    // on it is comparable with the next household's. The maximum is rounded up
+    // to a readable step so the axis reads like a ruler rather than an
+    // arbitrary multiple of one household's upper bound.
+    const max = niceMax((hasRange ? high : total) * 1.05 || 1);
+    const pct = v => Math.max(0, Math.min(100, (v / max) * 100));
+
+    const range = $('range');
+    range.style.left = pct(hasRange ? low : 0) + '%';
+    range.style.width = (hasRange ? pct(high) - pct(low) : 0) + '%';
+    range.className = 'range' + (riskFlag === 'volatile' ? ' wide' : '');
+    $('point').style.left = pct(total) + '%';
+    $('tickMax').textContent = 'KSh ' + kes(max);
+
+    $('caption').textContent = hasRange
+      ? `Point estimate KSh ${kes(total)}. The band spans `
+        + `${Math.round(((high - low) / total) * 100)}% of it — `
+        + (riskFlag === 'volatile'
+            ? 'wide enough that this household is flagged volatile.'
+            : 'narrow enough to plan against.')
+      : 'The band needs at least three months of history.';
+
+    const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+    const largest = entries.length ? entries[0][1] : 1;
+    $('tableCaption').textContent = entries.length
+      ? `Where it goes — ${entries.length} categories`
+      : 'No categories to show yet';
+    $('rows').innerHTML = entries.map(([name, value]) => `
+      <tr>
+        <td class="name">${name}</td>
+        <td class="bar"><div class="fill" style="width:${(value / largest) * 100}%"></div></td>
+        <td class="val">KSh ${kes(value)}</td>
+      </tr>`).join('');
+
+    $('confidence').textContent = confidence.toFixed(2);
+    const flag = $('flag');
+    flag.textContent = riskFlag === null ? 'None' : riskFlag.replace(/_/g, ' ');
+    flag.className = riskFlag ? 'flagged' : '';
+    $('method').textContent = data.method;
+  }
+
+  $('form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const userId = chosenUser();
+    const month = Number($('month').value);
+    const year = Number($('year').value);
+
+    if (!userId) { setState('Enter a household ID to forecast.', true); return; }
+
+    setState('Forecasting…');
+    try {
+      const response = await fetch(API + '/forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, month, year })
+      });
+
+      if (response.status === 422) {
+        setState('The service rejected that request. Month must be 1–12 and the household ID cannot be blank.', true);
+        return;
+      }
+      if (!response.ok) {
+        setState(`The service answered ${response.status}.`, true);
+        return;
+      }
+      render(await response.json(), month, year);
+    } catch {
+      setState(`Can't reach the service at ${API}. Start it with: uvicorn app.main:app --port 8000`, true);
+    }
+  });
 </script>
+</body>
+</html>
