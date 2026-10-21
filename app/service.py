@@ -31,19 +31,20 @@ contract. There is no fitted state to go stale between requests.
 
 from __future__ import annotations
 
-from app.data import load_monthly
-from app.forecaster import Forecast, TrailingMeanForecaster
+from app.data import load_budgets, load_monthly
+from app.forecaster import BudgetBlendForecaster, Forecast
 from app.schemas import Request, Response
 
 # The single swap point. SANDBOX_RESULTS.md has the evidence.
 #
-# This is the per-category mean over the household's whole history. It is not
-# a model, and that is the finding rather than a shortfall: monthly spend in
-# the sandbox has a lag-1 autocorrelation of about -0.07, so months are
-# independent draws and the sample mean is the efficient estimator. The
-# two-shape model is measurably WORSE on this data (catMAE t = +5.25), because
-# it corrects for structure the data does not contain.
-FORECASTER = TrailingMeanForecaster(0)
+# 80% the household's own spending history, 20% the budget it declared.
+#
+# The sandbox has no temporal structure to model — lag-1 autocorrelation of
+# monthly spend is about -0.07 — so the gains here come from using a BETTER
+# ESTIMATOR and a SECOND SOURCE, not from forecasting. `allocated_kes` is an
+# independent estimate of the same quantity the history mean estimates, and
+# combining two noisy estimates beats either.
+FORECASTER = BudgetBlendForecaster(load_budgets(), weight=0.8)
 
 
 def _history_before(monthly, year: int, month: int):

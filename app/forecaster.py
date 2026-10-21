@@ -341,3 +341,93 @@ class TrailingMeanForecaster:
             risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
             method=self.name,
         )
+
+
+class BudgetBlendForecaster:
+    """
+    Blends the household's own history with the budget it declared.
+
+    The platform records `allocated_kes` per household per category, and in the
+    staging extract that figure is constant across all 18 months and correlates
+    0.80 with actual spend. It is therefore a second, independent estimate of
+    the same quantity the history mean estimates — and averaging two noisy
+    estimates of one quantity beats either, which is all this class does.
+
+    `weight` is the share given to history. 0.8 was selected on a validation
+    split (train months 1-12, test 13-15), which preferred it for total error;
+    that split preferred 0.4 for category error, so the two metrics disagree
+    and the contract's primary field decided it. An untouched holdout (train
+    1-15, test 16-18) reproduced the same preference, and paired over 1,500
+    held-out household-months it improves BOTH against history alone:
+    MAE -70.4 (t -2.24) and category MAE -22.9 (t -8.26).
+
+    That the two splits agreed is the reason this is believed at all. Several
+    earlier results in this project looked convincing on one split and
+    evaporated on another, and the weight was NOT chosen by reading the
+    holdout.
+
+    NO LEAKAGE: the budget is constant over the whole extract, so using it for
+    a future month reveals nothing about that month. See `app.data.load_budgets`
+    for what must change if budgets ever become time-varying.
+
+    Falls back to history alone for any household-category with no budget row,
+    so a missing budget file degrades to `TrailingMeanForecaster`.
+    """
+
+    def __init__(self, budgets: pd.DataFrame | None = None, weight: float = 0.8):
+        self.weight = weight
+        self.name = f"blend:history{weight:.1f}_budget{1 - weight:.1f}"
+        self._budget: dict[tuple[str, str], float] = {}
+        if budgets is not None and len(budgets):
+            self._budget = {
+                (str(r.user_id), str(r.category)): float(r.allocated)
+                for r in budgets.itertuples()
+            }
+
+    def forecast(
+        self, history: pd.DataFrame, user_id: str, year: int, month: int
+    ) -> Forecast:
+        table = _pivot(_user_history(history, user_id))
+        if table.empty:
+            return _insufficient(self.name)
+
+        n_months = len(table)
+        w = self.weight
+        breakdown: dict[str, float] = {}
+
+        categories = set(table.columns) | {
+            c for (u, c) in self._budget if u == str(user_id)
+        }
+        for category in categories:
+            hist = (
+                float(table[category].mean()) if category in table.columns else 0.0
+            )
+            allocated = self._budget.get((str(user_id), category))
+            value = hist if allocated is None else w * hist + (1 - w) * allocated
+            if value > 0.005:
+                breakdown[category] = round(value, 2)
+
+        total = round(float(sum(breakdown.values())), 2)
+        if n_months < MIN_MONTHS_FOR_FORECAST:
+            return Forecast(
+                total=total, breakdown=breakdown, confidence=0.0,
+                risk_flag="insufficient_history", method=self.name,
+            )
+
+        monthly = table.sum(axis=1)
+        mean_total = float(monthly.mean())
+        cv = float(monthly.std(ddof=1) / mean_total) if mean_total > 0 else 0.0
+        low = float(np.percentile(monthly, 10))
+        high = float(np.percentile(monthly, 90))
+        slack = (1.0 - _evidence(n_months)) * max(total, 1.0) * 0.5
+        low = max(0.0, min(low, total) - slack)
+        high = max(high, total) + slack
+        rel_width = (high - low) / total if total > 0 else float("inf")
+
+        return Forecast(
+            total=total, breakdown=breakdown,
+            confidence=round(_confidence_from_cv(cv) * _evidence(n_months), 4),
+            low=round(low, 2), high=round(high, 2),
+            risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
+            method=self.name,
+        )

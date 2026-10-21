@@ -18,7 +18,8 @@ from app.model import (
     Components,
     TwoShapeForecaster,
     _composition,
-    _is_fixed,
+    _is_constant,
+    _is_recurring,
 )
 from app.synthetic import generate, monthly_totals
 
@@ -107,17 +108,33 @@ def test_seasonality_is_not_silently_an_improvement():
 # ── fixed-obligation detection ──
 
 
-def test_detects_a_steady_charge_as_fixed():
-    assert _is_fixed(np.array([18_000.0] * 8))
-    assert _is_fixed(np.array([2_500, 2_480, 2_520, 2_495, 2_510, 2_505], dtype=float))
+def test_detects_a_steady_charge_as_constant():
+    assert _is_constant(np.array([18_000.0] * 8))
+    assert _is_constant(np.array([2_500, 2_480, 2_520, 2_495, 2_510, 2_505], dtype=float))
 
 
-def test_does_not_treat_erratic_spend_as_fixed():
-    assert not _is_fixed(np.array([900, 4_200, 150, 2_700, 80, 3_300], dtype=float))
-    # Missing from too many recent months.
-    assert not _is_fixed(np.array([18_000, 0, 0, 18_000, 0, 18_000], dtype=float))
-    # Too little history to tell.
-    assert not _is_fixed(np.array([18_000.0, 18_000.0]))
+def test_does_not_treat_erratic_spend_as_constant():
+    assert not _is_constant(np.array([900, 4_200, 150, 2_700, 80, 3_300], dtype=float))
+    assert not _is_constant(np.array([18_000, 0, 0, 18_000, 0, 18_000], dtype=float))
+    assert not _is_constant(np.array([18_000.0, 18_000.0]))
+
+
+def test_recurrence_is_about_presence_not_amount():
+    """
+    The distinction the sandbox forced. A recurring obligation may have a wildly
+    variable amount and still be perfectly predictable in its timing, and an
+    amount-based test finds 8.5% of real recurring categories.
+    """
+    variable_but_monthly = np.array([900, 4_200, 1_150, 2_700, 3_080, 1_300], dtype=float)
+    assert _is_recurring(variable_but_monthly)
+    assert not _is_constant(variable_but_monthly), "amount test must disagree here"
+
+    steady_but_occasional = np.array([5_000, 0, 0, 5_000, 0, 0], dtype=float)
+    assert not _is_recurring(steady_but_occasional)
+
+
+def test_recurrence_needs_enough_history():
+    assert not _is_recurring(np.array([1_000.0, 1_000.0]))
 
 
 def test_fixed_charge_absorbs_a_step_quickly():
@@ -163,7 +180,7 @@ def test_habitual_spend_scales_with_the_target_month():
     The spend has to be genuinely variable for this to be a test of the
     habitual path. A first version of this fixture put exactly 12 transactions
     of ~60 KES in every month, which gave a coefficient of variation of 0.024
-    — so `_is_fixed` classified it as an obligation and correctly refused to
+    — so `_is_constant` classified it as a steady charge and correctly refused to
     scale it by month length. A near-constant monthly total is
     indistinguishable from a fixed charge, and treating it as one is right;
     the fixture was simply not describing habitual spend.
@@ -178,7 +195,7 @@ def test_habitual_spend_scales_with_the_target_month():
     history = _history(rows)
 
     values = history["amount"].to_numpy()
-    assert not _is_fixed(values), "fixture must look habitual, not fixed"
+    assert not _is_constant(values), "fixture must look habitual, not constant"
 
     forecaster = TwoShapeForecaster(intervals=False)
     feb = forecaster.forecast(history, "u", 2027, 2).breakdown["Transport"]

@@ -51,6 +51,7 @@ from app.synthetic import RECORD_COLUMNS, generate, monthly_totals
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SPENDING_RECORDS = DATA_DIR / "spending_records.csv"
+BUDGET_CATEGORIES = DATA_DIR / "budget_categories.csv"
 
 # Candidate source column names for each canonical column, in priority order.
 # Extend as the real schema becomes known rather than renaming columns by hand.
@@ -167,3 +168,53 @@ def load_monthly() -> tuple[pd.DataFrame, bool]:
     """
     records, is_synthetic = load_records()
     return monthly_totals(records), is_synthetic
+
+
+# ── household budgets ──
+#
+# `budget_categories.csv` carries `allocated_kes`: what the household budgeted
+# for a category. In this extract it is CONSTANT per (household, category)
+# across all 18 months — 100% of pairs have a single distinct value — so using
+# it to forecast any month involves no look-ahead. It correlates 0.80 with
+# actual spend.
+#
+# That constancy is the condition that makes this safe. If budgets ever become
+# time-varying, only rows dated strictly before the target month may be used,
+# and this loader must start filtering by month.
+
+
+@functools.lru_cache(maxsize=1)
+def load_budgets() -> pd.DataFrame:
+    """
+    `(user_id, category) -> allocated`, or an empty frame when unavailable.
+
+    Returns empty rather than raising when the file is missing, because the
+    service must still answer from history alone — the budget is an additional
+    signal, not a dependency.
+    """
+    if not BUDGET_CATEGORIES.exists():
+        return pd.DataFrame(columns=["user_id", "category", "allocated"])
+
+    raw = pd.read_csv(BUDGET_CATEGORIES)
+    lowered = {c.lower(): c for c in raw.columns}
+
+    def pick(*names: str) -> str | None:
+        for n in names:
+            if n in raw.columns:
+                return n
+            if n.lower() in lowered:
+                return lowered[n.lower()]
+        return None
+
+    user = pick("user_profile_id", "userProfileId", "user_id")
+    category = pick("category", "category_name")
+    allocated = pick("allocated_kes", "allocated", "budget_kes")
+    if not (user and category and allocated):
+        print(f"[data] {BUDGET_CATEGORIES.name}: no budget columns found in {sorted(raw.columns)}")
+        return pd.DataFrame(columns=["user_id", "category", "allocated"])
+
+    per_pair = raw.groupby([user, category])[allocated].median().reset_index()
+    per_pair.columns = ["user_id", "category", "allocated"]
+    per_pair["user_id"] = per_pair["user_id"].astype(str)
+    per_pair["category"] = per_pair["category"].astype(str).str.strip()
+    return per_pair

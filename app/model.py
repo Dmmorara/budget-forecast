@@ -90,14 +90,40 @@ from app.forecaster import (
     _user_history,
 )
 
-# ── fixed-obligation detection ──
-# A category counts as a fixed obligation when it is present in nearly every
-# recent month at a nearly constant amount. The window is short on purpose: a
-# rent escalation twelve months ago would inflate a long-window CV and hide a
-# charge that has been perfectly steady since.
+# ── recurrence and constancy are DIFFERENT properties ──
+#
+# Measured against the sandbox's own `is_recurring` label (4,000 recurring and
+# 1,334 non-recurring household-category pairs):
+#
+#   detector                        precision   recall      F1
+#   amount CV (_is_constant)            0.974    0.085   0.156
+#   presence >= 90% of months           1.000    1.000   1.000
+#   gap CV < 0.5                        1.000    0.107   0.194
+#   day-of-month concentration > 0.8    0.000    0.000   0.000
+#
+# Median amount CV is 0.231 for NON-recurring pairs and 0.240 for recurring
+# ones. Amount variability carries essentially no information about whether
+# something recurs — a rent that changes every month recurs just as reliably as
+# one that does not. An earlier version of this module used amount CV alone and
+# called the result a fixed-obligation detector; it found 8.5% of them.
+#
+# So the two properties are now separate, because they answer different
+# questions and a category can have either, both or neither:
+#
+#   recurring   — does it happen every month?  Answers WHETHER to forecast it.
+#                 Detected from presence. Rent, Transport and Groceries all are.
+#   constant    — is the amount steady?        Answers HOW to level it.
+#                 Detected from amount CV. Rent is; Transport is not.
+#
+# Day-of-month concentration scores zero here only because these are CATEGORY
+# aggregates with many transactions spread across the month. At payee grain —
+# Phase 1's problem — it is informative, and Phase 1's RecurrenceDetector used
+# interval regularity for exactly that reason. The right timing signal depends
+# on the grain.
 FIXED_WINDOW = 6
 FIXED_MIN_PRESENT = 5          # of FIXED_WINDOW months
 FIXED_MAX_CV = 0.12
+RECURRING_MIN_PRESENCE = 0.90
 
 # ── level estimation ──
 FIXED_LEVEL_WINDOW = 3         # short, so a step is absorbed quickly
@@ -354,7 +380,34 @@ def _level(normalised: np.ndarray, detect_step: bool) -> float:
     return float(np.median(window))
 
 
-def _is_fixed(values: np.ndarray) -> bool:
+def _is_recurring(values: np.ndarray) -> bool:
+    """
+    Does this category appear in nearly every month?
+
+    Presence over the whole history, not amount steadiness. On the sandbox this
+    separates the platform's own `is_recurring` label perfectly: every recurring
+    pair is present in all 18 months, every non-recurring one in at most 14.
+
+    Note what this does NOT buy on the sandbox. Gating sporadic categories to
+    zero improves total MAE by 76 KES but worsens the category breakdown by 106
+    (t = +19.1, better on only 4.3% of forecasts), because knowing a category is
+    sporadic says nothing about WHEN it will occur — occurrence there is
+    independent month to month. The detector is correct; the data gives it
+    nothing to exploit. On data with genuine recurring obligations it should,
+    and that remains untested.
+    """
+    if len(values) < FIXED_WINDOW:
+        return False
+    return float((values > 0).mean()) >= RECURRING_MIN_PRESENCE
+
+
+def _is_constant(values: np.ndarray) -> bool:
+    """
+    Is the amount steady when it does occur?
+
+    Named for what it measures. This is NOT a recurrence test — see the note
+    above the constants — and it must not be used as one.
+    """
     recent = values[-FIXED_WINDOW:]
     if len(recent) < FIXED_WINDOW:
         return False
@@ -400,7 +453,7 @@ class TwoShapeForecaster:
     ) -> float:
         c = self.components
 
-        if c.fixed_split and _is_fixed(values):
+        if c.fixed_split and _is_constant(values):
             # A steady charge. No day-count scaling (rent does not depend on
             # how many Tuesdays a month has), no seasonality, no drift — the
             # last three months already carry any step that has happened.
