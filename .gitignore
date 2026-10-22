@@ -6,4 +6,11 @@ __pycache__/
 .pytest_cache/
 models/
 data/*.csv
+# The minimised, pseudonymised slice IS committed: the deployed service builds
+# from this repository, so anything it serves has to be here. See
+# scripts/minimise_extract.py for exactly what it contains and why.
+!data/public/*.csv
 .DS_Store
+
+# Pinned staging certificate (public cert, but tied to one environment)
+certs/

@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>budget-forecast</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2310243a'/%3E%3Crect x='3' y='7' width='10' height='3' fill='%232f6f5e'/%3E%3Crect x='7' y='5' width='1' height='7' fill='%23eceeed'/%3E%3C/svg%3E">
 <!--
   U-CS 37 demo console.
 
@@ -163,17 +164,19 @@
 
   <p class="synthetic">
     Every figure here is synthetic. The staging sandbox is generated data, so no
-    number on this page describes a real household or a real shilling.
+    number on this page describes a real household or a real shilling. Households
+    are shown under local identifiers; no names, descriptions or platform
+    identifiers were deployed with this service.
   </p>
 
   <form id="form">
     <div class="field grow">
       <label for="user">Household</label>
       <select id="user">
-        <option value="39baa149-c426-446f-987b-eac54b193d8b">Steady spender — narrow range</option>
-        <option value="1a29c0a0-cbb0-4059-bacf-ed42ebe8e5e9">High spender — narrow range</option>
-        <option value="2f9ddb6f-10b8-4e99-a1e8-3c9618e1ed8e">Erratic spender — flagged volatile</option>
-        <option value="15b13302-34a5-4550-afee-72e9e514789f">Most erratic in the sandbox</option>
+        <option value="h015">Steady spender — narrowest range</option>
+        <option value="h007">Modest spender — narrow range</option>
+        <option value="h053">Erratic spender — flagged volatile</option>
+        <option value="h043">Most erratic household — widest range</option>
         <option value="__custom">Another household ID…</option>
       </select>
     </div>

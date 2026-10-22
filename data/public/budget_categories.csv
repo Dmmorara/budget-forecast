@@ -1,0 +1,650 @@
+user_id,category,allocated_kes
+h001,Airtime and Data,3975.0
+h001,Electronics Upgrade,0.0
+h001,Entertainment,3975.0
+h001,Groceries,17887.0
+h001,Household Help,5962.0
+h001,Jewellery,0.0
+h001,Medical,4969.0
+h001,Rent,29812.0
+h001,Savings,4969.0
+h001,School Fees,11925.0
+h001,Transport,9937.0
+h001,Utilities,5962.0
+h002,Airtime and Data,4439.0
+h002,Crypto Purchase,0.0
+h002,Electronics Upgrade,0.0
+h002,Entertainment,4439.0
+h002,Groceries,19975.0
+h002,Household Help,6658.0
+h002,Medical,5549.0
+h002,Rent,33292.0
+h002,Savings,5549.0
+h002,School Fees,13317.0
+h002,Transport,11097.0
+h002,Utilities,6658.0
+h003,Airtime and Data,3086.0
+h003,Crypto Purchase,0.0
+h003,Entertainment,3086.0
+h003,Foreign Transfer,0.0
+h003,Groceries,13889.0
+h003,Household Help,4630.0
+h003,Jewellery,0.0
+h003,Medical,3858.0
+h003,Rent,23148.0
+h003,Savings,3858.0
+h003,School Fees,9259.0
+h003,Transport,7716.0
+h003,Utilities,4630.0
+h004,Airtime and Data,1490.0
+h004,Entertainment,1490.0
+h004,Groceries,6705.0
+h004,Household Help,2235.0
+h004,Medical,1863.0
+h004,Rent,11175.0
+h004,Savings,1863.0
+h004,School Fees,4470.0
+h004,Transport,3725.0
+h004,Utilities,2235.0
+h005,Airtime and Data,2326.0
+h005,Electronics Upgrade,0.0
+h005,Entertainment,2326.0
+h005,Groceries,10468.0
+h005,Household Help,3489.0
+h005,Medical,2908.0
+h005,Rent,17446.0
+h005,Savings,2908.0
+h005,School Fees,6979.0
+h005,Transport,5815.0
+h005,Utilities,3489.0
+h006,Airtime and Data,2462.0
+h006,Entertainment,2462.0
+h006,Groceries,11080.0
+h006,Household Help,3693.0
+h006,Medical,3078.0
+h006,Rent,18466.0
+h006,Savings,3078.0
+h006,School Fees,7386.0
+h006,Transport,6155.0
+h006,Utilities,3693.0
+h007,Airtime and Data,1612.0
+h007,Cash Advance,0.0
+h007,Entertainment,1612.0
+h007,Groceries,7252.0
+h007,Household Help,2417.0
+h007,Medical,2014.0
+h007,Rent,12087.0
+h007,Savings,2014.0
+h007,School Fees,4835.0
+h007,Transport,4029.0
+h007,Utilities,2417.0
+h008,Airtime and Data,4911.0
+h008,Electronics Upgrade,0.0
+h008,Entertainment,4911.0
+h008,Groceries,22098.0
+h008,Household Help,7366.0
+h008,Jewellery,0.0
+h008,Medical,6138.0
+h008,Rent,36831.0
+h008,Savings,6138.0
+h008,School Fees,14732.0
+h008,Transport,12277.0
+h008,Utilities,7366.0
+h009,Airtime and Data,2108.0
+h009,Electronics Upgrade,0.0
+h009,Entertainment,2108.0
+h009,Groceries,9487.0
+h009,Household Help,3162.0
+h009,Medical,2635.0
+h009,Rent,15812.0
+h009,Savings,2635.0
+h009,School Fees,6325.0
+h009,Transport,5271.0
+h009,Utilities,3162.0
+h010,Airtime and Data,3297.0
+h010,Entertainment,3297.0
+h010,Groceries,14835.0
+h010,Household Help,4945.0
+h010,Luxury Goods,0.0
+h010,Medical,4121.0
+h010,Rent,24725.0
+h010,Savings,4121.0
+h010,School Fees,9890.0
+h010,Transport,8242.0
+h010,Utilities,4945.0
+h011,Airtime and Data,3022.0
+h011,Entertainment,3022.0
+h011,Groceries,13598.0
+h011,Household Help,4533.0
+h011,Jewellery,0.0
+h011,Medical,3777.0
+h011,Rent,22663.0
+h011,Savings,3777.0
+h011,School Fees,9065.0
+h011,Transport,7554.0
+h011,Utilities,4533.0
+h012,Airtime and Data,1692.0
+h012,Crypto Purchase,0.0
+h012,Entertainment,1692.0
+h012,Groceries,7614.0
+h012,Household Help,2538.0
+h012,Medical,2115.0
+h012,Rent,12691.0
+h012,Savings,2115.0
+h012,School Fees,5076.0
+h012,Transport,4230.0
+h012,Utilities,2538.0
+h013,Airtime and Data,2287.0
+h013,Cash Advance,0.0
+h013,Entertainment,2287.0
+h013,Groceries,10290.0
+h013,Household Help,3430.0
+h013,Luxury Goods,0.0
+h013,Medical,2858.0
+h013,Rent,17151.0
+h013,Savings,2858.0
+h013,School Fees,6860.0
+h013,Transport,5717.0
+h013,Utilities,3430.0
+h014,Airtime and Data,2280.0
+h014,Electronics Upgrade,0.0
+h014,Entertainment,2280.0
+h014,Gambling,0.0
+h014,Groceries,10262.0
+h014,Household Help,3421.0
+h014,Medical,2851.0
+h014,Rent,17103.0
+h014,Savings,2851.0
+h014,School Fees,6841.0
+h014,Transport,5701.0
+h014,Utilities,3421.0
+h015,Airtime and Data,2867.0
+h015,Electronics Upgrade,0.0
+h015,Entertainment,2867.0
+h015,Groceries,12900.0
+h015,Household Help,4300.0
+h015,Medical,3583.0
+h015,Rent,21499.0
+h015,Savings,3583.0
+h015,School Fees,8600.0
+h015,Transport,7166.0
+h015,Utilities,4300.0
+h016,Airtime and Data,1710.0
+h016,Crypto Purchase,0.0
+h016,Entertainment,1710.0
+h016,Groceries,7695.0
+h016,Household Help,2565.0
+h016,Medical,2138.0
+h016,Rent,12825.0
+h016,Savings,2138.0
+h016,School Fees,5130.0
+h016,Transport,4275.0
+h016,Utilities,2565.0
+h017,Airtime and Data,1833.0
+h017,Entertainment,1833.0
+h017,Groceries,8246.0
+h017,Household Help,2749.0
+h017,Medical,2291.0
+h017,Rent,13744.0
+h017,Savings,2291.0
+h017,School Fees,5498.0
+h017,Transport,4581.0
+h017,Utilities,2749.0
+h018,Airtime and Data,2881.0
+h018,Cash Advance,0.0
+h018,Entertainment,2881.0
+h018,Groceries,12965.0
+h018,Household Help,4322.0
+h018,Medical,3601.0
+h018,Rent,21608.0
+h018,Savings,3601.0
+h018,School Fees,8643.0
+h018,Transport,7203.0
+h018,Utilities,4322.0
+h019,Airtime and Data,5360.0
+h019,Entertainment,5360.0
+h019,Groceries,24121.0
+h019,Household Help,8040.0
+h019,Medical,6700.0
+h019,Rent,40202.0
+h019,Savings,6700.0
+h019,School Fees,16081.0
+h019,Transport,13401.0
+h019,Utilities,8040.0
+h020,Airtime and Data,5095.0
+h020,Entertainment,5095.0
+h020,Groceries,22927.0
+h020,Household Help,7642.0
+h020,Medical,6369.0
+h020,Rent,38212.0
+h020,Savings,6369.0
+h020,School Fees,15285.0
+h020,Transport,12737.0
+h020,Utilities,7642.0
+h021,Airtime and Data,2330.0
+h021,Entertainment,2330.0
+h021,Groceries,10485.0
+h021,Household Help,3495.0
+h021,Medical,2913.0
+h021,Rent,17475.0
+h021,Savings,2913.0
+h021,School Fees,6990.0
+h021,Transport,5825.0
+h021,Utilities,3495.0
+h022,Airtime and Data,1888.0
+h022,Entertainment,1888.0
+h022,Groceries,8497.0
+h022,Household Help,2832.0
+h022,Medical,2360.0
+h022,Rent,14161.0
+h022,Savings,2360.0
+h022,School Fees,5664.0
+h022,Transport,4720.0
+h022,Utilities,2832.0
+h023,Airtime and Data,3217.0
+h023,Entertainment,3217.0
+h023,Groceries,14479.0
+h023,Household Help,4826.0
+h023,Medical,4022.0
+h023,Rent,24131.0
+h023,Savings,4022.0
+h023,School Fees,9652.0
+h023,Transport,8044.0
+h023,Utilities,4826.0
+h024,Airtime and Data,1371.0
+h024,Entertainment,1371.0
+h024,Groceries,6168.0
+h024,Household Help,2056.0
+h024,Medical,1713.0
+h024,Rent,10279.0
+h024,Savings,1713.0
+h024,School Fees,4112.0
+h024,Transport,3426.0
+h024,Utilities,2056.0
+h025,Airtime and Data,2200.0
+h025,Entertainment,2200.0
+h025,Groceries,9898.0
+h025,Household Help,3299.0
+h025,Medical,2750.0
+h025,Rent,16497.0
+h025,Savings,2750.0
+h025,School Fees,6599.0
+h025,Transport,5499.0
+h025,Utilities,3299.0
+h026,Airtime and Data,1413.0
+h026,Cash Advance,0.0
+h026,Entertainment,1413.0
+h026,Groceries,6359.0
+h026,Household Help,2120.0
+h026,Medical,1766.0
+h026,Rent,10599.0
+h026,Savings,1766.0
+h026,School Fees,4239.0
+h026,Transport,3533.0
+h026,Utilities,2120.0
+h027,Airtime and Data,3999.0
+h027,Crypto Purchase,0.0
+h027,Entertainment,3999.0
+h027,Foreign Transfer,0.0
+h027,Groceries,17997.0
+h027,Household Help,5999.0
+h027,Medical,4999.0
+h027,Rent,29994.0
+h027,Savings,4999.0
+h027,School Fees,11998.0
+h027,Transport,9998.0
+h027,Utilities,5999.0
+h028,Airtime and Data,5546.0
+h028,Entertainment,5546.0
+h028,Groceries,24957.0
+h028,Household Help,8319.0
+h028,Medical,6932.0
+h028,Rent,41595.0
+h028,Savings,6932.0
+h028,School Fees,16638.0
+h028,Transport,13865.0
+h028,Utilities,8319.0
+h029,Airtime and Data,2974.0
+h029,Crypto Purchase,0.0
+h029,Entertainment,2974.0
+h029,Groceries,13381.0
+h029,Household Help,4460.0
+h029,Jewellery,0.0
+h029,Medical,3717.0
+h029,Rent,22302.0
+h029,Savings,3717.0
+h029,School Fees,8921.0
+h029,Transport,7434.0
+h029,Utilities,4460.0
+h030,Airtime and Data,4669.0
+h030,Entertainment,4669.0
+h030,Groceries,21011.0
+h030,Household Help,7004.0
+h030,Medical,5836.0
+h030,Rent,35019.0
+h030,Savings,5836.0
+h030,School Fees,14007.0
+h030,Transport,11673.0
+h030,Utilities,7004.0
+h031,Airtime and Data,5658.0
+h031,Cash Advance,0.0
+h031,Entertainment,5658.0
+h031,Groceries,25459.0
+h031,Household Help,8486.0
+h031,Medical,7072.0
+h031,Rent,42432.0
+h031,Savings,7072.0
+h031,School Fees,16973.0
+h031,Transport,14144.0
+h031,Utilities,8486.0
+h032,Airtime and Data,3363.0
+h032,Entertainment,3363.0
+h032,Groceries,15131.0
+h032,Household Help,5044.0
+h032,Medical,4203.0
+h032,Rent,25219.0
+h032,Savings,4203.0
+h032,School Fees,10088.0
+h032,Transport,8406.0
+h032,Utilities,5044.0
+h033,Airtime and Data,1799.0
+h033,Entertainment,1799.0
+h033,Groceries,8095.0
+h033,Household Help,2698.0
+h033,Medical,2249.0
+h033,Rent,13492.0
+h033,Savings,2249.0
+h033,School Fees,5397.0
+h033,Transport,4497.0
+h033,Utilities,2698.0
+h034,Airtime and Data,3448.0
+h034,Cash Advance,0.0
+h034,Entertainment,3448.0
+h034,Groceries,15516.0
+h034,Household Help,5172.0
+h034,Medical,4310.0
+h034,Rent,25861.0
+h034,Savings,4310.0
+h034,School Fees,10344.0
+h034,Transport,8620.0
+h034,Utilities,5172.0
+h035,Airtime and Data,2602.0
+h035,Electronics Upgrade,0.0
+h035,Entertainment,2602.0
+h035,Groceries,11711.0
+h035,Household Help,3904.0
+h035,Medical,3253.0
+h035,Rent,19519.0
+h035,Savings,3253.0
+h035,School Fees,7807.0
+h035,Transport,6506.0
+h035,Utilities,3904.0
+h036,Airtime and Data,2736.0
+h036,Entertainment,2736.0
+h036,Foreign Transfer,0.0
+h036,Groceries,12311.0
+h036,Household Help,4104.0
+h036,Jewellery,0.0
+h036,Medical,3420.0
+h036,Rent,20518.0
+h036,Savings,3420.0
+h036,School Fees,8207.0
+h036,Transport,6839.0
+h036,Utilities,4104.0
+h037,Airtime and Data,4832.0
+h037,Entertainment,4832.0
+h037,Groceries,21744.0
+h037,Household Help,7248.0
+h037,Medical,6040.0
+h037,Rent,36239.0
+h037,Savings,6040.0
+h037,School Fees,14496.0
+h037,Transport,12080.0
+h037,Utilities,7248.0
+h038,Airtime and Data,1346.0
+h038,Entertainment,1346.0
+h038,Foreign Transfer,0.0
+h038,Groceries,6056.0
+h038,Household Help,2019.0
+h038,Medical,1682.0
+h038,Rent,10094.0
+h038,Savings,1682.0
+h038,School Fees,4037.0
+h038,Transport,3365.0
+h038,Utilities,2019.0
+h039,Airtime and Data,1610.0
+h039,Crypto Purchase,0.0
+h039,Entertainment,1610.0
+h039,Groceries,7246.0
+h039,Household Help,2415.0
+h039,Luxury Goods,0.0
+h039,Medical,2013.0
+h039,Rent,12077.0
+h039,Savings,2013.0
+h039,School Fees,4831.0
+h039,Transport,4026.0
+h039,Utilities,2415.0
+h040,Airtime and Data,4348.0
+h040,Electronics Upgrade,0.0
+h040,Entertainment,4348.0
+h040,Groceries,19564.0
+h040,Household Help,6521.0
+h040,Medical,5434.0
+h040,Rent,32606.0
+h040,Savings,5434.0
+h040,School Fees,13043.0
+h040,Transport,10869.0
+h040,Utilities,6521.0
+h041,Airtime and Data,1967.0
+h041,Entertainment,1967.0
+h041,Gambling,0.0
+h041,Groceries,8854.0
+h041,Household Help,2951.0
+h041,Medical,2459.0
+h041,Rent,14756.0
+h041,Savings,2459.0
+h041,School Fees,5902.0
+h041,Transport,4919.0
+h041,Utilities,2951.0
+h042,Airtime and Data,1623.0
+h042,Entertainment,1623.0
+h042,Groceries,7301.0
+h042,Household Help,2434.0
+h042,Medical,2028.0
+h042,Rent,12169.0
+h042,Savings,2028.0
+h042,School Fees,4868.0
+h042,Transport,4056.0
+h042,Utilities,2434.0
+h043,Airtime and Data,3535.0
+h043,Cash Advance,0.0
+h043,Entertainment,3535.0
+h043,Groceries,15908.0
+h043,Household Help,5303.0
+h043,Medical,4419.0
+h043,Rent,26513.0
+h043,Savings,4419.0
+h043,School Fees,10605.0
+h043,Transport,8838.0
+h043,Utilities,5303.0
+h044,Airtime and Data,2663.0
+h044,Cash Advance,0.0
+h044,Crypto Purchase,0.0
+h044,Entertainment,2663.0
+h044,Groceries,11982.0
+h044,Household Help,3994.0
+h044,Medical,3328.0
+h044,Rent,19969.0
+h044,Savings,3328.0
+h044,School Fees,7988.0
+h044,Transport,6656.0
+h044,Utilities,3994.0
+h045,Airtime and Data,3167.0
+h045,Crypto Purchase,0.0
+h045,Entertainment,3167.0
+h045,Groceries,14252.0
+h045,Household Help,4751.0
+h045,Medical,3959.0
+h045,Rent,23753.0
+h045,Savings,3959.0
+h045,School Fees,9501.0
+h045,Transport,7918.0
+h045,Utilities,4751.0
+h046,Airtime and Data,3963.0
+h046,Entertainment,3963.0
+h046,Groceries,17835.0
+h046,Household Help,5945.0
+h046,Medical,4954.0
+h046,Rent,29725.0
+h046,Savings,4954.0
+h046,School Fees,11890.0
+h046,Transport,9908.0
+h046,Utilities,5945.0
+h047,Airtime and Data,4928.0
+h047,Entertainment,4928.0
+h047,Groceries,22178.0
+h047,Household Help,7393.0
+h047,Medical,6161.0
+h047,Rent,36964.0
+h047,Savings,6161.0
+h047,School Fees,14785.0
+h047,Transport,12321.0
+h047,Utilities,7393.0
+h048,Airtime and Data,1471.0
+h048,Entertainment,1471.0
+h048,Groceries,6619.0
+h048,Household Help,2206.0
+h048,Medical,1839.0
+h048,Rent,11032.0
+h048,Savings,1839.0
+h048,School Fees,4413.0
+h048,Transport,3677.0
+h048,Utilities,2206.0
+h049,Airtime and Data,2469.0
+h049,Entertainment,2469.0
+h049,Gambling,0.0
+h049,Groceries,11111.0
+h049,Household Help,3704.0
+h049,Medical,3086.0
+h049,Rent,18518.0
+h049,Savings,3086.0
+h049,School Fees,7407.0
+h049,Transport,6173.0
+h049,Utilities,3704.0
+h050,Airtime and Data,1480.0
+h050,Entertainment,1480.0
+h050,Groceries,6659.0
+h050,Household Help,2220.0
+h050,Medical,1850.0
+h050,Rent,11098.0
+h050,Savings,1850.0
+h050,School Fees,4439.0
+h050,Transport,3699.0
+h050,Utilities,2220.0
+h051,Airtime and Data,1351.0
+h051,Entertainment,1351.0
+h051,Groceries,6077.0
+h051,Household Help,2026.0
+h051,Medical,1688.0
+h051,Rent,10129.0
+h051,Savings,1688.0
+h051,School Fees,4052.0
+h051,Transport,3376.0
+h051,Utilities,2026.0
+h052,Airtime and Data,2068.0
+h052,Entertainment,2068.0
+h052,Foreign Transfer,0.0
+h052,Groceries,9306.0
+h052,Household Help,3102.0
+h052,Luxury Goods,0.0
+h052,Medical,2585.0
+h052,Rent,15511.0
+h052,Savings,2585.0
+h052,School Fees,6204.0
+h052,Transport,5170.0
+h052,Utilities,3102.0
+h053,Airtime and Data,3388.0
+h053,Entertainment,3388.0
+h053,Groceries,15244.0
+h053,Household Help,5081.0
+h053,Medical,4234.0
+h053,Rent,25406.0
+h053,Savings,4234.0
+h053,School Fees,10163.0
+h053,Transport,8469.0
+h053,Utilities,5081.0
+h054,Airtime and Data,4426.0
+h054,Electronics Upgrade,0.0
+h054,Entertainment,4426.0
+h054,Groceries,19915.0
+h054,Household Help,6638.0
+h054,Luxury Goods,0.0
+h054,Medical,5532.0
+h054,Rent,33191.0
+h054,Savings,5532.0
+h054,School Fees,13277.0
+h054,Transport,11064.0
+h054,Utilities,6638.0
+h055,Airtime and Data,5255.0
+h055,Entertainment,5255.0
+h055,Groceries,23646.0
+h055,Household Help,7882.0
+h055,Medical,6568.0
+h055,Rent,39411.0
+h055,Savings,6568.0
+h055,School Fees,15764.0
+h055,Transport,13137.0
+h055,Utilities,7882.0
+h056,Airtime and Data,2174.0
+h056,Entertainment,2174.0
+h056,Groceries,9782.0
+h056,Household Help,3261.0
+h056,Medical,2717.0
+h056,Rent,16303.0
+h056,Savings,2717.0
+h056,School Fees,6521.0
+h056,Transport,5434.0
+h056,Utilities,3261.0
+h057,Airtime and Data,2179.0
+h057,Cash Advance,0.0
+h057,Entertainment,2179.0
+h057,Foreign Transfer,0.0
+h057,Groceries,9807.0
+h057,Household Help,3269.0
+h057,Medical,2724.0
+h057,Rent,16344.0
+h057,Savings,2724.0
+h057,School Fees,6538.0
+h057,Transport,5448.0
+h057,Utilities,3269.0
+h058,Airtime and Data,3187.0
+h058,Entertainment,3187.0
+h058,Groceries,14343.0
+h058,Household Help,4781.0
+h058,Medical,3984.0
+h058,Rent,23906.0
+h058,Savings,3984.0
+h058,School Fees,9562.0
+h058,Transport,7969.0
+h058,Utilities,4781.0
+h059,Airtime and Data,3634.0
+h059,Cash Advance,0.0
+h059,Entertainment,3634.0
+h059,Groceries,16351.0
+h059,Household Help,5450.0
+h059,Medical,4542.0
+h059,Rent,27251.0
+h059,Savings,4542.0
+h059,School Fees,10901.0
+h059,Transport,9084.0
+h059,Utilities,5450.0
+h060,Airtime and Data,3030.0
+h060,Entertainment,3030.0
+h060,Groceries,13637.0
+h060,Household Help,4546.0
+h060,Medical,3788.0
+h060,Rent,22728.0
+h060,Savings,3788.0
+h060,School Fees,9091.0
+h060,Transport,7576.0
+h060,Utilities,4546.0
