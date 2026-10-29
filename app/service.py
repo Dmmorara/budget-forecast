@@ -31,9 +31,9 @@ contract. There is no fitted state to go stale between requests.
 
 from __future__ import annotations
 
-from app.data import load_budgets, load_monthly
+from app.data import SANDBOX_IS_SYNTHETIC, load_budgets, load_monthly
 from app.forecaster import BudgetBlendForecaster, Forecast
-from app.schemas import Request, Response
+from app.schemas import BudgetResponse, Request, Response
 
 # The single swap point. SANDBOX_RESULTS.md has the evidence.
 #
@@ -91,4 +91,23 @@ def handle(body: Request) -> Response:
         estimatedTotalHigh=fc.high,
         isSynthetic=is_synthetic,
         method=fc.method,
+    )
+
+
+def budget_for(user_id: str) -> BudgetResponse:
+    """
+    The household's declared budget per category, for GET /budget (FR-09).
+
+    The same table the forecaster blends in, so the client shows the budget
+    the forecast was actually built from. An unknown household gets an empty
+    mapping rather than an error — see BudgetResponse in app/schemas.py.
+
+    Budgets only ever come from the sandbox file, so the flag is the sandbox's.
+    """
+    budgets = load_budgets()
+    rows = budgets[budgets["user_id"] == user_id]
+    return BudgetResponse(
+        userId=user_id,
+        allocated={row.category: round(float(row.allocated), 2) for row in rows.itertuples()},
+        isSynthetic=SANDBOX_IS_SYNTHETIC,
     )
