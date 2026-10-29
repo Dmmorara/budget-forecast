@@ -78,3 +78,27 @@ class Response(BaseModel):
     method: str = "baseline"
 
     model_config = {"extra": "allow"}
+
+
+class BudgetResponse(BaseModel):
+    """
+    out of GET /budget?userId=... (FR-09):
+      { "userId": "...", "allocated": { "<category>": 0.0 }, "isSynthetic": true }
+
+    A new endpoint, so this is additive: POST /forecast is untouched.
+
+    An UNKNOWN household gets HTTP 200 with `allocated` empty, not a 404 — the
+    same choice POST /forecast makes, for the same reason. To the client the
+    two cases mean the same thing: there is no declared budget to show beside
+    the forecast (FR-13), just as the forecaster falls back to history alone
+    when a budget is missing (FR-08). A 404 would add an error class the client
+    is not specified to handle (IR-04 covers timeout, network failure, 422 and
+    5xx). A missing or empty `userId` is still a 422, as for /forecast (FR-02).
+
+    A category budgeted at 0 is present with 0.0: a declared zero is a
+    declaration, and differs from a category the household never budgeted.
+    """
+
+    userId: str
+    allocated: dict[CategoryName, float] = Field(default_factory=dict)
+    isSynthetic: bool = True

@@ -10,12 +10,12 @@ Do not change the shape without agreeing it with: U-CS 38 (spend-advisor), U-CS 
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.schemas import Request, Response
-from app.service import handle
+from app.schemas import BudgetResponse, Request, Response
+from app.service import budget_for, handle
 
 app = FastAPI(title="U-CS 37 — budget-forecast", version="0.1.0")
 
@@ -67,6 +67,19 @@ def health():
 @app.post("/forecast", response_model=Response)
 def endpoint(body: Request) -> Response:
     return handle(body)
+
+
+@app.get("/budget", response_model=BudgetResponse)
+def budget(
+    userId: str = Query(min_length=1, description="Household/user identifier"),
+) -> BudgetResponse:
+    """
+    The household's declared budget per category (FR-09).
+
+    An unknown household is a 200 with an empty `allocated`, not a 404: there
+    is simply no budget to show. A missing or empty userId is a 422.
+    """
+    return budget_for(userId)
 
 
 # Serve the demo console at the root, so the deployed URL shows something a

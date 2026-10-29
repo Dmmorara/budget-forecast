@@ -156,6 +156,26 @@ Two deliberate departures from the skeleton, both documented in `app/schemas.py`
 `riskFlag` is a closed set: `insufficient_history`, `volatile`, `overspend_risk`.
 Downstream teams branching on it need to know what they can receive.
 
+### GET /budget (FR-09)
+
+A separate, additive endpoint for the Flutter client's budget comparison. `POST
+/forecast` is unchanged.
+
+```
+GET /budget?userId=h015
+  200: { "userId": "h015", "allocated": { "Rent": 20000.0, ... }, "isSynthetic": true }
+```
+
+| case | response |
+|---|---|
+| known household | 200, `allocated` maps each budgeted category to KES; a declared 0 appears as `0.0` |
+| unknown household | 200, `allocated` is `{}` — **not a 404** |
+| `userId` missing or empty | 422 |
+
+An unknown household is not an error, as with `POST /forecast`. For the client it
+means the same as a household with no budget: there is nothing to show beside the
+forecast. A 404 would add an error class the client is not specified to handle.
+
 ## Run it
 
 ```bash
