@@ -43,9 +43,11 @@ scripts/
 .pytest_cache/
 .mypy_cache/
 
-# Python build artefacts
-__pycache__/
-*.py[cod]
+# Python build artefacts. The **/ matters: a bare `__pycache__/` matches only
+# at the root of the build context, which let the host's app/__pycache__/ into
+# the image until a `find` inside the container showed it.
+**/__pycache__/
+**/*.py[cod]
 *.egg-info/
 build/
 dist/

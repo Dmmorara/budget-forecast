@@ -3,6 +3,7 @@ Check that a deployed budget-forecast answers its contract.
 
     python3 -m scripts.smoke_test https://budget-forecast-xxxx.onrender.com
     python3 -m scripts.smoke_test                      # defaults to localhost:8000
+    python3 -m scripts.smoke_test <url> <userId>       # a household other than h001
 
 Written to be run against the live URL before telling Benjamin it is ready,
 and again after any redeploy. It asserts the shape three other teams depend
@@ -20,6 +21,15 @@ import time
 import httpx
 
 DEFAULT_URL = "http://localhost:8000"
+
+# A household in the committed data/public/ slice, which is what the image
+# serves. It must be one the service KNOWS: an unknown id is answered with an
+# empty breakdown, and the checks on the breakdown and the interval would then
+# have nothing to check. An earlier default, "steady_tenant-01", exists only in
+# the local generator's population, so against the deployed slice every run
+# took the unknown-household path and still printed "all checks passed".
+# A local server reading the full extract uses platform UUIDs; pass one.
+DEFAULT_USER = "h001"
 
 # Render's free plan sleeps after inactivity and takes roughly 50 seconds to
 # wake. A short timeout here would report a working service as broken.
@@ -40,6 +50,7 @@ def check(label: str, condition: bool, detail: str = "") -> None:
 
 def main() -> int:
     base = (sys.argv[1] if len(sys.argv) > 1 else DEFAULT_URL).rstrip("/")
+    user = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_USER
     print(f"budget-forecast smoke test against {base}\n")
 
     client = httpx.Client(timeout=TIMEOUT, follow_redirects=True)
@@ -67,9 +78,7 @@ def main() -> int:
         check("month 13 is rejected", bad_month.status_code == 422, str(bad_month.status_code))
 
         print("\ncontract")
-        # A household the synthetic population always contains. Once the real
-        # extract is loaded this needs a real userId.
-        body = {"userId": "steady_tenant-01", "month": 11, "year": 2026}
+        body = {"userId": user, "month": 11, "year": 2026}
         response = client.post(f"{base}/forecast", json=body)
         check("POST /forecast returns 200", response.status_code == 200, response.text)
         payload = response.json()
@@ -90,21 +99,26 @@ def main() -> int:
         )
         check("breakdown is an object", isinstance(payload["breakdown"], dict))
 
-        if payload["breakdown"]:
-            total = sum(payload["breakdown"].values())
-            check(
-                "breakdown sums to estimatedTotal",
-                abs(total - payload["estimatedTotal"]) < 0.5,
-                f"{total} vs {payload['estimatedTotal']}",
-            )
+        # Fail rather than skip: a passing run must mean the forecast path ran.
+        check(
+            f"{user} is a known household with a breakdown",
+            bool(payload["breakdown"]),
+            f"riskFlag={payload.get('riskFlag')!r}, method={payload.get('method')!r}"
+            " - pass a userId the service holds",
+        )
+        total = sum(payload["breakdown"].values())
+        check(
+            "breakdown sums to estimatedTotal",
+            abs(total - payload["estimatedTotal"]) < 0.5,
+            f"{total} vs {payload['estimatedTotal']}",
+        )
 
         low, high = payload.get("estimatedTotalLow"), payload.get("estimatedTotalHigh")
-        if low is not None and high is not None:
-            check(
-                "interval brackets the forecast",
-                low <= payload["estimatedTotal"] <= high,
-                f"[{low}, {high}] vs {payload['estimatedTotal']}",
-            )
+        check(
+            "interval brackets the forecast",
+            low is not None and high is not None and low <= payload["estimatedTotal"] <= high,
+            f"[{low}, {high}] vs {payload['estimatedTotal']}",
+        )
 
         print("\nprovenance")
         if payload.get("isSynthetic"):
