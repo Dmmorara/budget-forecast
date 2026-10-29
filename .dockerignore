@@ -33,6 +33,8 @@ env/
 # Data extracts. Staging data is mounted or fetched at runtime, never baked in.
 data/*.csv
 data/*.json
+# ...except the committed slice, which is what the deployed service serves.
+!data/public/*.csv
 
 # Tests and development tooling: the image runs the service, it does not test it.
 # CI runs the suite against the source, which is the right place for it.

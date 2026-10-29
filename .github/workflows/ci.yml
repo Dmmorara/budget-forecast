@@ -39,8 +39,21 @@ jobs:
 
       - name: Check no secrets or data extracts are tracked
         run: |
-          if git ls-files | grep -Ei '(^|/)\.env$|\.(xlsx|xls|csv|pkl|joblib)$'; then
+          # data/public/ is the one allowed exception: a minimised,
+          # pseudonymised slice with no names, committed because the deployed
+          # service builds from this repository. scripts/minimise_extract.py
+          # documents exactly what it contains. Everything else is rejected.
+          OFFENDING=$(git ls-files \
+            | grep -Ei '(^|/)\.env$|\.(xlsx|xls|csv|pkl|joblib)$' \
+            | grep -v '^data/public/' || true)
+          if [ -n "$OFFENDING" ]; then
+            echo "$OFFENDING"
             echo "::error::a secret or data extract is tracked - see CONTRIBUTING.md"
+            exit 1
+          fi
+          # And the exception must stay minimal: no names may appear in it.
+          if grep -rilE 'first_name|last_name|full_name|relationship' data/public/ 2>/dev/null; then
+            echo "::error::data/public/ contains personal names - re-run scripts/minimise_extract.py"
             exit 1
           fi
           echo "clean"

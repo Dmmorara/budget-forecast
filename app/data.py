@@ -50,8 +50,28 @@ import pandas as pd
 from app.synthetic import RECORD_COLUMNS, generate, monthly_totals
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-SPENDING_RECORDS = DATA_DIR / "spending_records.csv"
-BUDGET_CATEGORIES = DATA_DIR / "budget_categories.csv"
+
+# Two tiers, deliberately.
+#
+# data/           the full extract as fetched. Gitignored, so it exists only on
+#                 a machine that ran scripts/fetch_data.py. Used for evaluation.
+# data/public/    a minimised, pseudonymised slice written by
+#                 scripts/minimise_extract.py. Committed, so the deployed
+#                 service has something real-shaped to serve — four columns,
+#                 opaque household ids, no names, no descriptions.
+#
+# The full extract wins when present, so local work keeps using all 500
+# households while a deployment serves the 60-household slice. Neither path
+# ever reads households.csv or dependants.csv, which hold the personal names.
+PUBLIC_DIR = DATA_DIR / "public"
+
+
+def _resolve(filename: str) -> Path | None:
+    """Full extract if it is here, otherwise the committed slice."""
+    for candidate in (DATA_DIR / filename, PUBLIC_DIR / filename):
+        if candidate.exists():
+            return candidate
+    return None
 
 # Candidate source column names for each canonical column, in priority order.
 # Extend as the real schema becomes known rather than renaming columns by hand.
@@ -138,7 +158,10 @@ def _adapt(raw: pd.DataFrame, source: str) -> pd.DataFrame:
 
 def provenance() -> str:
     """Which synthetic source is in use. For the report, not for the contract."""
-    return "platform-sandbox" if SPENDING_RECORDS.exists() else "local-generator"
+    source = _resolve("spending_records.csv")
+    if source is None:
+        return "local-generator"
+    return "platform-sandbox" if source.parent == DATA_DIR else "platform-sandbox-minimised"
 
 
 def load_records() -> tuple[pd.DataFrame, bool]:
@@ -148,9 +171,11 @@ def load_records() -> tuple[pd.DataFrame, bool]:
     `is_synthetic` is True for both sources — see the module docstring. Use
     `provenance()` when the distinction between them matters.
     """
-    if SPENDING_RECORDS.exists():
-        raw = pd.read_csv(SPENDING_RECORDS)
-        return _adapt(raw, SPENDING_RECORDS.name), SANDBOX_IS_SYNTHETIC
+    source = _resolve("spending_records.csv")
+    if source is not None:
+        raw = pd.read_csv(source)
+        label = str(source.relative_to(DATA_DIR.parent))
+        return _adapt(raw, label), SANDBOX_IS_SYNTHETIC
 
     records, _truth = generate()
     return records, True
@@ -192,10 +217,11 @@ def load_budgets() -> pd.DataFrame:
     service must still answer from history alone — the budget is an additional
     signal, not a dependency.
     """
-    if not BUDGET_CATEGORIES.exists():
+    source = _resolve("budget_categories.csv")
+    if source is None:
         return pd.DataFrame(columns=["user_id", "category", "allocated"])
 
-    raw = pd.read_csv(BUDGET_CATEGORIES)
+    raw = pd.read_csv(source)
     lowered = {c.lower(): c for c in raw.columns}
 
     def pick(*names: str) -> str | None:
@@ -210,7 +236,7 @@ def load_budgets() -> pd.DataFrame:
     category = pick("category", "category_name")
     allocated = pick("allocated_kes", "allocated", "budget_kes")
     if not (user and category and allocated):
-        print(f"[data] {BUDGET_CATEGORIES.name}: no budget columns found in {sorted(raw.columns)}")
+        print(f"[data] {source.name}: no budget columns found in {sorted(raw.columns)}")
         return pd.DataFrame(columns=["user_id", "category", "allocated"])
 
     per_pair = raw.groupby([user, category])[allocated].median().reset_index()
