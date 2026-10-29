@@ -187,6 +187,12 @@ That checks the contract three other teams depend on, not just that the process 
 up — including that `POST /forecast {}` is a 422 and that `breakdown` sums to
 `estimatedTotal`.
 
+**The Flutter web build needs CORS.** Set `CORS_ALLOWED_ORIGINS` on the Render
+service to the web app's origin, e.g. `https://<flutter-web-host>` (comma-separate
+several). Unset, the service allows no cross-origin browser calls at all, which is
+the safe default and shows up as a CORS error in the browser console. Callers that
+are not browsers (the platform, U-CS 38, 43 and 46) need nothing.
+
 **The free plan sleeps** after ~15 minutes idle, and the next request takes about 50
 seconds. Send one request a few minutes before any demo, and tell Benjamin, because
 a cold start looks like a timeout from the calling side.
