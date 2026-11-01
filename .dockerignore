@@ -56,6 +56,10 @@ dist/
 *.md
 !README.md
 
+# The Flutter client. It is built and served separately; the service image
+# has no use for a Dart project, its build output or its Android tree.
+client/
+
 # Editor and OS noise
 .vscode/
 .idea/
