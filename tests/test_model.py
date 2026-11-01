@@ -21,7 +21,7 @@ from app.model import (
     _is_constant,
     _is_recurring,
 )
-from app.synthetic import generate, monthly_totals
+from app.synthetic import REFERENCE_LAST_MONTH, generate, monthly_totals
 
 HISTORY_COLUMNS = ["user_id", "year", "month", "category", "amount"]
 
@@ -44,7 +44,7 @@ def test_model_beats_the_baseline_across_populations():
     """
     model_deltas: list[float] = []
     for seed in range(37, 41):
-        monthly = monthly_totals(generate(seed=seed)[0])
+        monthly = monthly_totals(generate(seed=seed, last_month=REFERENCE_LAST_MONTH)[0])
         base = evaluate(TrailingMedianForecaster(6), monthly, 12)
         model = evaluate(TwoShapeForecaster(intervals=False), monthly, 12)
         model_deltas.append(model.mae_category - base.mae_category)
@@ -60,7 +60,7 @@ def test_model_clears_the_projects_stated_bar():
     This is the bar the project README actually sets, and the margin is large
     (around 1,400 KES) and holds on every population tested.
     """
-    monthly = monthly_totals(generate(seed=37)[0])
+    monthly = monthly_totals(generate(seed=37, last_month=REFERENCE_LAST_MONTH)[0])
     naive = evaluate(
         __import__("app.forecaster", fromlist=["x"]).LastMonthForecaster(), monthly, 12
     )
@@ -92,7 +92,7 @@ def test_seasonality_is_not_silently_an_improvement():
     helpful, this test should fail and be rewritten with new evidence — rather
     than the project carrying a claim nobody has re-measured.
     """
-    monthly = monthly_totals(generate(seed=37)[0])
+    monthly = monthly_totals(generate(seed=37, last_month=REFERENCE_LAST_MONTH)[0])
     without = evaluate(TwoShapeForecaster(Components(), intervals=False), monthly, 12)
     with_seasonal = evaluate(
         TwoShapeForecaster(

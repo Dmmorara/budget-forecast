@@ -288,6 +288,22 @@ DEFAULT_MIX = {
     "new_user": 3,
 }
 
+# The last month of the population behind every REPORTED synthetic figure:
+# BASELINE.md, MODEL.md, and the tests that assert their numbers.
+#
+# Pinned because generate() defaults to the month before today, so an unpinned
+# population moves every calendar month: different months of history, a
+# different seasonal phase, different held-out months. A reported figure that
+# depends on the date it was run is not reproducible, and NFR-05 requires every
+# reported figure to be. BASELINE.md was measured when that default resolved
+# to 30 September 2026; run unpinned on 1 November, the same script gave MAE
+# 3520.2 instead of 5137.9, and the single-population seasonality check flipped
+# sign. Pinning restores both exactly.
+#
+# The default itself is left alone for interactive use, and app/data.py's
+# fallback keeps it: that is live behaviour, where "up to last month" is right.
+REFERENCE_LAST_MONTH = date(2026, 9, 30)
+
 
 def _month_days(year: int, month: int) -> list[date]:
     n = calendar.monthrange(year, month)[1]

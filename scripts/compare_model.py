@@ -43,7 +43,7 @@ import pandas as pd
 from app.evaluate import evaluate, noise_floor
 from app.forecaster import LastMonthForecaster, TrailingMedianForecaster
 from app.model import Components, TwoShapeForecaster
-from app.synthetic import generate, monthly_totals
+from app.synthetic import REFERENCE_LAST_MONTH, generate, monthly_totals
 
 FIRST_SEED = 37
 DEFAULT_SEEDS = 12
@@ -96,7 +96,7 @@ def main() -> None:
         base_coverage: list[float] = []
 
         for seed in seeds:
-            records, truth = generate(seed=seed)
+            records, truth = generate(seed=seed, last_month=REFERENCE_LAST_MONTH)
             monthly = monthly_totals(records)
 
             base = evaluate(TrailingMedianForecaster(6), monthly, holdout)
