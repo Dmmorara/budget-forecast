@@ -116,6 +116,7 @@ tests/
   test_model.py         the model, paired across populations
 BASELINE.md      the number to beat, and where the removable error lives
 MODEL.md         what beat it, what did not, and why three components were cut
+client/          the Flutter app (Android and web) — see client/README.md
 ```
 
 ## Two things a stranger should know before reading the code
