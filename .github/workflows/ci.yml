@@ -4,6 +4,14 @@
 # decisions". The check is the part that cannot be asserted in prose: a green
 # tick on a PR is evidence the tests actually ran against that change, dated
 # and attributable, rather than a claim that they were run locally.
+#
+# Two codebases, two test jobs (§4.4.8): pytest for the service, flutter
+# analyze and flutter test for client/. Each runs only when its side changed.
+#
+# The filtering is done by the `changes` job and `if:` on each test job, NOT
+# by `paths:` on the workflow. Branch protection requires the `pytest` check;
+# a workflow that never starts leaves a required check pending forever and
+# blocks the merge, whereas a job skipped by `if:` reports as passing.
 name: tests
 
 on:
@@ -13,7 +21,38 @@ on:
     branches: [main]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      service: ${{ steps.diff.outputs.service }}
+      client: ${{ steps.diff.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        name: Decide which side changed
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # No usable base (first push, force-push): run everything.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "service=true" >> "$GITHUB_OUTPUT"
+            echo "client=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          FILES=$(git diff --name-only "$BASE" "$GITHUB_SHA")
+          echo "$FILES"
+          # Anything outside client/ (app/, tests/, the Dockerfile, this
+          # workflow) is the service's concern; client/** is the client's.
+          echo "service=$(echo "$FILES" | grep -qv '^client/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "client=$(echo "$FILES" | grep -q '^client/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   pytest:
+    needs: changes
+    if: needs.changes.outputs.service == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +75,39 @@ jobs:
         # BASELINE.md are only trustworthy for as long as the script that
         # produced them still runs.
         run: python -m scripts.measure_baseline
+
+  flutter:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # The version the client was built and tested with locally.
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Widget tests
+        run: flutter test
+
+  secrets:
+    # Every change, either side: a client-only PR could add client/.env just
+    # as easily as a service PR could add .env.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Check no secrets or data extracts are tracked
         run: |
