@@ -14,7 +14,7 @@ import pandas as pd
 
 from app.evaluate import by_profile, compare, evaluate, noise_floor
 from app.forecaster import LastMonthForecaster, TrailingMedianForecaster
-from app.synthetic import generate, monthly_totals
+from app.synthetic import REFERENCE_LAST_MONTH, generate, monthly_totals
 
 N_HOLDOUT = 3
 SEED = 37
@@ -37,7 +37,7 @@ def per_profile_floor(truth: pd.DataFrame, n_holdout: int) -> pd.DataFrame:
 def main() -> None:
     pd.set_option("display.width", 220)
 
-    records, truth = generate(seed=SEED)
+    records, truth = generate(seed=SEED, last_month=REFERENCE_LAST_MONTH)
     monthly = monthly_totals(records)
 
     months = (monthly["year"] * 12 + monthly["month"]).nunique()
