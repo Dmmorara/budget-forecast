@@ -107,6 +107,8 @@ app/
 scripts/
   measure_baseline.py   reproduces every number in BASELINE.md
   compare_model.py      reproduces every number in MODEL.md (12 populations)
+  analyse_sandbox.py    reproduces SANDBOX_RESULTS.md's autocorrelation, oracle
+                        and dependants figures (needs the full extract)
   smoke_test.py         checks a deployed URL answers the contract
 tests/
   test_contract.py      the shape other teams rely on

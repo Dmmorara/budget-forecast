@@ -271,10 +271,13 @@ to find. **That remains untested.**
 ## Reproducing
 
 ```bash
-python -m scripts.fetch_data      # needs .env; data/ is gitignored
+python -m scripts.fetch_data        # needs .env; data/ is gitignored
 pytest -q
+python -m scripts.analyse_sandbox   # autocorrelation, oracle, dependants
 ```
 
-The autocorrelation and oracle figures come from the analysis in this
-document's history rather than a committed script; `scripts/analyse_sandbox.py`
-is the follow-up that should make them reproducible.
+`scripts/analyse_sandbox.py` regenerates the lag-1 autocorrelation, the
+best-constant oracle (MAE, MAPE and catMAE) and the two dependants
+correlations, and prints each beside the value quoted here. It needs the full
+extract in `data/` and refuses to run on the 60-household slice in
+`data/public/`, which would give different numbers.
