@@ -208,6 +208,17 @@ That checks the contract three other teams depend on, not just that the process 
 up — including that `POST /forecast {}` is a 422 and that `breakdown` sums to
 `estimatedTotal`.
 
+**The Flutter web app is a second service in the blueprint,** `budget-forecast-web`,
+a Render static site. Render's build image has no Flutter, so
+[`client/tool/render_build.sh`](client/tool/render_build.sh) fetches the pinned SDK
+and builds it; `client/build/` is never committed. The two services need each
+other's URL, so after the first deploy set two values in the dashboard:
+
+1. `FORECAST_API_URL` on `budget-forecast-web`: the service's URL. Redeploy the
+   site, because the URL is compiled into the app. Until it is set, the site's
+   build fails on purpose.
+2. `CORS_ALLOWED_ORIGINS` on `budget-forecast`: the web app's origin.
+
 **The Flutter web build needs CORS.** Set `CORS_ALLOWED_ORIGINS` on the Render
 service to the web app's origin, e.g. `https://<flutter-web-host>` (comma-separate
 several). Unset, the service allows no cross-origin browser calls at all, which is

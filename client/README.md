@@ -80,6 +80,17 @@ service, use `http://10.0.2.2:8000` with `flutter run` (debug builds only).
 For the deployed web app, set the service's `CORS_ALLOWED_ORIGINS` to the web
 app's own origin, e.g. `https://<flutter-web-host>`.
 
+On Render the web app is the `budget-forecast-web` static site in the root
+`render.yaml`. Its build command is `tool/render_build.sh`, which fetches
+Flutter (Render's build image has none) and runs the web build with the two
+defines taken from environment variables. To check it locally with a fresh
+SDK:
+
+```bash
+FORECAST_API_URL=http://localhost:8000 DATA_LAST_MONTH=2026-09 \
+  FLUTTER_HOME=/tmp/flutter-check bash tool/render_build.sh
+```
+
 ## Test
 
 ```bash
