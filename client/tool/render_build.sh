@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Flutter web app on Render (§4.4.8). render.yaml's static site
-# runs this from the repository root; it writes client/build/web, which Render
-# publishes. The build output is never committed.
+# runs this from client/, its root directory; it writes client/build/web,
+# which Render publishes. It works from any directory, since it changes to
+# client/ itself. The build output is never committed.
 #
 # Render's static-site build image has no Flutter, so this fetches the SDK at
 # the same version CI pins (.github/workflows/ci.yml). Change both together.
