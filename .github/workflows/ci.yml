@@ -90,6 +90,7 @@ jobs:
         with:
           channel: stable
           # The version the client was built and tested with locally.
+          # client/tool/render_build.sh pins the same one; change both together.
           flutter-version: 3.47.8
           cache: true
 

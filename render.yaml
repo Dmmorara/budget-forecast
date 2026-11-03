@@ -8,6 +8,10 @@
 # reads this file, builds, and gives a URL of the form
 # https://budget-forecast-XXXX.onrender.com
 #
+# Two services: budget-forecast, the API, and budget-forecast-web, the Flutter
+# web app as a static site. The web app needs two values set by hand after the
+# first deploy; see the comment on it below.
+#
 # THE FREE PLAN SLEEPS. After about 15 minutes without traffic the instance is
 # spun down, and the next request takes roughly 50 seconds while it restarts.
 # That matters in two specific places and is worth planning around rather than
@@ -17,7 +21,8 @@
 #   U-CS 38's integration. A cold start may look like a timeout to them, so
 #   Benjamin should know the service is on a free plan.
 #
-# No environment variables are set here. The service runs on synthetic data
+# No environment variable is given a value here. CORS_ALLOWED_ORIGINS is
+# declared below and set in the dashboard. The service runs on synthetic data
 # until a staging extract is present, and it needs no credentials to do that.
 # When the extract arrives, the data belongs in a mounted disk or an object
 # store, NOT in the image and NOT in this file.
@@ -36,3 +41,65 @@ services:
     # reads it. A container listening on a hardcoded port fails this check and
     # is killed, which is the commonest way a working image fails to deploy.
     healthCheckPath: /health
+
+    envVars:
+      # IR-02. The origin the Flutter web app is served from, for example
+      # https://budget-forecast-web-XXXX.onrender.com: scheme and host, no
+      # path, no trailing slash. Comma-separate several. It must be the web
+      # app's own origin, not this service's URL.
+      #
+      # Left unset, the service allows no cross-origin browser calls at all.
+      # The web app then loads and fetches nothing, and the only sign is a CORS
+      # error in the browser console. Callers that are not browsers (the
+      # platform, U-CS 38, 43 and 46) need nothing.
+      #
+      # sync: false means Render asks for the value when the blueprint is
+      # created and keeps it in the dashboard, so the origin is configured
+      # rather than committed.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  # The Flutter web app (§4.4.8), as a Render static site: served from Render's
+  # CDN, free, and it does not sleep. Only the service behind it sleeps.
+  #
+  # The static build image has no Flutter, so client/tool/render_build.sh
+  # fetches the SDK at the version CI pins and builds client/build/web. The
+  # build output is not committed; Render builds it on every deploy.
+  #
+  # The two services point at each other, and neither URL is known until the
+  # blueprint has created them. So after the first deploy:
+  #   1. set FORECAST_API_URL here to the service's URL, and redeploy this site
+  #      (the URL is compiled in, so changing it needs a rebuild);
+  #   2. set CORS_ALLOWED_ORIGINS on budget-forecast to this site's URL.
+  # Until step 1 the build fails on purpose rather than publish an app with no
+  # service address.
+  - type: web
+    name: budget-forecast-web
+    runtime: static
+    branch: main
+    autoDeploy: true
+    buildCommand: bash client/tool/render_build.sh
+    staticPublishPath: ./client/build/web
+
+    # Rebuild only when the client changes. A service-only change would
+    # otherwise refetch Flutter and rebuild an identical app.
+    buildFilter:
+      paths:
+        - client/**
+
+    # The app keeps its state in memory and does not route by URL, but a
+    # reload on any path should still get the app rather than a 404.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    envVars:
+      # IR-01. The service's URL, e.g. https://budget-forecast-XXXX.onrender.com.
+      # Set in the dashboard, not committed.
+      - key: FORECAST_API_URL
+        sync: false
+      # The last month the service has data for (FR-14). Not a secret. Change
+      # it, and redeploy, when the extract changes.
+      - key: DATA_LAST_MONTH
+        value: "2026-09"
