@@ -1,7 +1,7 @@
 # budget-forecast client — U-CS 37
 
 The Flutter app for the budget-forecast service. One Dart codebase, built for
-Android and the web (NFR-06). Chapter 4 of the report is the specification:
+Android and the web (NFR-06), and also for iOS. Chapter 4 of the report is the specification:
 FR-10 to FR-16, IR-01 to IR-07, NFR-10 and wireframes 4.12 to 4.14.
 
 **All figures are synthetic.** Every forecast screen says so (FR-16).
@@ -76,6 +76,24 @@ flutter build apk --dart-define=FORECAST_API_URL=https://<service>.onrender.com 
 The APK needs an **https** URL: Android blocks cleartext HTTP, and this app
 does not turn that off. To try a debug build on an emulator against a local
 service, use `http://10.0.2.2:8000` with `flutter run` (debug builds only).
+
+**iOS** is run from Xcode. Xcode does not take `--dart-define`, so write the
+defines into the generated config first, then open `ios/Runner.xcworkspace`:
+
+```bash
+flutter build ios --config-only \
+  --dart-define=FORECAST_API_URL=http://localhost:8000 \
+  --dart-define=DATA_LAST_MONTH=2026-09
+```
+
+Re-run it whenever a define changes. `flutter run -d <simulator>` with the
+same defines also works without Xcode.
+`Info.plist` allows cleartext HTTP to local hosts only
+(`NSAllowsLocalNetworking`), so the simulator can reach
+`http://localhost:8000`; every other host needs https, and the Render URL
+needs nothing. On a physical iPhone, `localhost` is the phone, so use the
+Mac's address. CI does not build iOS: macOS runners cost ten times Linux
+minutes.
 
 For the deployed web app, set the service's `CORS_ALLOWED_ORIGINS` to the web
 app's own origin, e.g. `https://<flutter-web-host>`.
