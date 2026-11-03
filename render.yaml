@@ -17,7 +17,8 @@
 #   U-CS 38's integration. A cold start may look like a timeout to them, so
 #   Benjamin should know the service is on a free plan.
 #
-# No environment variables are set here. The service runs on synthetic data
+# No environment variable is given a value here. CORS_ALLOWED_ORIGINS is
+# declared below and set in the dashboard. The service runs on synthetic data
 # until a staging extract is present, and it needs no credentials to do that.
 # When the extract arrives, the data belongs in a mounted disk or an object
 # store, NOT in the image and NOT in this file.
@@ -36,3 +37,20 @@ services:
     # reads it. A container listening on a hardcoded port fails this check and
     # is killed, which is the commonest way a working image fails to deploy.
     healthCheckPath: /health
+
+    envVars:
+      # IR-02. The origin the Flutter web app is served from, for example
+      # https://budget-forecast-web-XXXX.onrender.com: scheme and host, no
+      # path, no trailing slash. Comma-separate several. It must be the web
+      # app's own origin, not this service's URL.
+      #
+      # Left unset, the service allows no cross-origin browser calls at all.
+      # The web app then loads and fetches nothing, and the only sign is a CORS
+      # error in the browser console. Callers that are not browsers (the
+      # platform, U-CS 38, 43 and 46) need nothing.
+      #
+      # sync: false means Render asks for the value when the blueprint is
+      # created and keeps it in the dashboard, so the origin is configured
+      # rather than committed.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
