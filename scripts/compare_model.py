@@ -59,6 +59,7 @@ VARIANTS: list[tuple[str, Components]] = [
     ("fixed only", Components(day_count=False, fixed_split=True, seasonality=False, drift=False, step=False)),
     ("day+fixed  <-- SHIPPED", SHIPPED),
     ("+seasonality (rejected)", Components(day_count=True, fixed_split=True, seasonality=True, drift=False, step=False)),
+    ("seasonality only (rejected)", Components(day_count=False, fixed_split=False, seasonality=True, drift=False, step=False)),
     ("+drift (rejected)", Components(day_count=True, fixed_split=True, seasonality=False, drift=True, step=False)),
     ("+step (rejected)", Components(day_count=True, fixed_split=True, seasonality=False, drift=False, step=True)),
 ]
@@ -130,7 +131,7 @@ def main() -> None:
 
         print(f"════════ holdout = {holdout} months ════════")
         header = (
-            f"{'variant':26s} {'MAE Δ':>9s} {'sd':>8s} {'t':>7s} {'wins':>7s} "
+            f"{'variant':28s} {'MAE Δ':>9s} {'sd':>8s} {'t':>7s} {'wins':>7s} "
             f"| {'catMAE Δ':>9s} {'t':>7s} {'wins':>7s}"
         )
         print(header)
@@ -139,7 +140,7 @@ def main() -> None:
             m_mean, m_sd, m_t, m_win = _stats(mae[name])
             c_mean, c_sd, c_t, c_win = _stats(cat[name])
             print(
-                f"{name:26s} {m_mean:9.1f} {m_sd:8.1f} {m_t:7.2f} "
+                f"{name:28s} {m_mean:9.1f} {m_sd:8.1f} {m_t:7.2f} "
                 f"{m_win:4d}/{len(seeds):<2d} "
                 f"| {c_mean:9.1f} {c_t:7.2f} {c_win:4d}/{len(seeds):<2d}"
             )
