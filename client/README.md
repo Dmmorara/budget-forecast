@@ -96,7 +96,7 @@ Mac's address. CI does not build iOS: macOS runners cost ten times Linux
 minutes.
 
 For the deployed web app, set the service's `CORS_ALLOWED_ORIGINS` to the web
-app's own origin, e.g. `https://<flutter-web-host>`.
+app's own origin, `https://budget-forecast-web.onrender.com`.
 
 On Render the web app is the `budget-forecast-web` static site in the root
 `render.yaml`. Its build command is `tool/render_build.sh`, which fetches
