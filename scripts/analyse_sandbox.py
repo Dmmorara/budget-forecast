@@ -57,7 +57,14 @@ DOCUMENTED = {
 class BestConstantOracle:
     """
     Each household-category's mean over the held-out months, forecast for all
-    of them. A category absent from a held-out month counts as zero spend.
+    of them: the category's holdout total divided by the number of held-out
+    months.
+
+    The breakdown covers the household's full category set, every category in
+    its history and its holdout. A category with no holdout spend is forecast
+    as 0.0, not dropped. That matters for catMAE, which averages over the
+    union of predicted and observed categories: dropping the zeros removes
+    categories the oracle gets exactly right and gives 1627.8 instead.
 
     It reads the months it is scored on, so it is unreachable by any real
     forecaster. It is the floor for a constant-mean model: what is left above
@@ -67,24 +74,16 @@ class BestConstantOracle:
     name = "oracle:best_constant"
 
     def __init__(self, monthly: pd.DataFrame, n_holdout: int):
-        keys = holdout_months(monthly, n_holdout)
-        test = monthly[np.isin(_month_keys(monthly), keys)]
-        grid = test.pivot_table(
-            index=["user_id", "year", "month"],
-            columns="category",
-            values="amount",
-            aggfunc="sum",
+        in_holdout = np.isin(_month_keys(monthly), holdout_months(monthly, n_holdout))
+        holdout_total = (
+            monthly[in_holdout].groupby(["user_id", "category"])["amount"].sum()
         )
-        months = [((k - 1) // 12, (k - 1) % 12 + 1) for k in keys]
-        full = pd.MultiIndex.from_tuples(
-            [(u, y, m) for u in sorted(test["user_id"].unique()) for y, m in months],
-            names=grid.index.names,
-        )
-        means = grid.reindex(full).fillna(0.0).groupby(level="user_id").mean()
-        self._breakdown = {
-            user: {c: float(v) for c, v in row.items() if v > 0}
-            for user, row in means.iterrows()
-        }
+        self._breakdown: dict[str, dict[str, float]] = {}
+        for user, categories in monthly.groupby("user_id")["category"]:
+            self._breakdown[str(user)] = {
+                c: float(holdout_total.get((user, c), 0.0)) / n_holdout
+                for c in sorted(categories.unique())
+            }
 
     def forecast(
         self, history: pd.DataFrame, user_id: str, year: int, month: int
