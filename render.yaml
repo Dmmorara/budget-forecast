@@ -43,8 +43,8 @@ services:
     healthCheckPath: /health
 
     envVars:
-      # IR-02. The origin the Flutter web app is served from, for example
-      # https://budget-forecast-web-XXXX.onrender.com: scheme and host, no
+      # IR-02. The origin the Flutter web app is served from, which is
+      # https://budget-forecast-web.onrender.com: scheme and host, no
       # path, no trailing slash. Comma-separate several. It must be the web
       # app's own origin, not this service's URL.
       #

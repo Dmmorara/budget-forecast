@@ -88,7 +88,7 @@ Supervisor: Dr Vincent Ochango · Industry partner: Webmasters Kenya
 | 1. Baseline | **Done** — measured, recorded in [`BASELINE.md`](BASELINE.md), live in `app/service.py` |
 | 2. Evaluation | **Done** — rolling-origin time split, `app/evaluate.py` |
 | 3. Model | **Done** — `TwoShapeForecaster`, recorded in [`MODEL.md`](MODEL.md), live in `app/service.py` |
-| 4. Integration | **Deployed** — <https://budget-forecast-e8ad.onrender.com>, passing `scripts/smoke_test.py` |
+| 4. Integration | **Deployed** — service <https://budget-forecast-e8ad.onrender.com>, passing `scripts/smoke_test.py`; web app <https://budget-forecast-web.onrender.com> |
 
 **All numbers so far are from synthetic data.** The sandbox extract is not yet in `data/`,
 and every response carries `isSynthetic: true` until it is.
@@ -222,7 +222,7 @@ other's URL, so after the first deploy set two values in the dashboard:
 2. `CORS_ALLOWED_ORIGINS` on `budget-forecast`: the web app's origin.
 
 **The Flutter web build needs CORS.** Set `CORS_ALLOWED_ORIGINS` on the Render
-service to the web app's origin, e.g. `https://<flutter-web-host>` (comma-separate
+service to the web app's origin, `https://budget-forecast-web.onrender.com` (comma-separate
 several). Unset, the service allows no cross-origin browser calls at all, which is
 the safe default and shows up as a CORS error in the browser console. Callers that
 are not browsers (the platform, U-CS 38, 43 and 46) need nothing.
