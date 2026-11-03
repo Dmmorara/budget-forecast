@@ -88,7 +88,7 @@ Supervisor: Dr Vincent Ochango · Industry partner: Webmasters Kenya
 | 1. Baseline | **Done** — measured, recorded in [`BASELINE.md`](BASELINE.md), live in `app/service.py` |
 | 2. Evaluation | **Done** — rolling-origin time split, `app/evaluate.py` |
 | 3. Model | **Done** — `TwoShapeForecaster`, recorded in [`MODEL.md`](MODEL.md), live in `app/service.py` |
-| 4. Integration | Dockerfile deploy-ready; `render.yaml` blueprint; awaiting a live URL |
+| 4. Integration | **Deployed** — <https://budget-forecast-e8ad.onrender.com>, passing `scripts/smoke_test.py` |
 
 **All numbers so far are from synthetic data.** The sandbox extract is not yet in `data/`,
 and every response carries `isSynthetic: true` until it is.
@@ -203,7 +203,7 @@ Render builds the image itself, so no local Docker installation is needed:
 3. Verify it, then send the URL to Benjamin for `BUDGET_FORECAST_SERVICE_URL`:
 
 ```bash
-python3 -m scripts.smoke_test https://budget-forecast-xxxx.onrender.com
+python3 -m scripts.smoke_test https://budget-forecast-e8ad.onrender.com
 ```
 
 That checks the contract three other teams depend on, not just that the process is
