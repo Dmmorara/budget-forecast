@@ -1,7 +1,7 @@
 """
 Check that a deployed budget-forecast answers its contract.
 
-    python3 -m scripts.smoke_test https://budget-forecast-xxxx.onrender.com
+    python3 -m scripts.smoke_test https://budget-forecast-e8ad.onrender.com
     python3 -m scripts.smoke_test                      # defaults to localhost:8000
     python3 -m scripts.smoke_test <url> <userId>       # a household other than h001
 

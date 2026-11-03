@@ -5,8 +5,8 @@
 # recommended route rather than building and pushing an image by hand.
 #
 # To use: Render dashboard -> New -> Blueprint -> pick this repository. Render
-# reads this file, builds, and gives a URL of the form
-# https://budget-forecast-XXXX.onrender.com
+# reads this file, builds, and gives the service a URL. Ours is
+# https://budget-forecast-e8ad.onrender.com
 #
 # Two services: budget-forecast, the API, and budget-forecast-web, the Flutter
 # web app as a static site. The web app needs two values set by hand after the
@@ -95,7 +95,7 @@ services:
         destination: /index.html
 
     envVars:
-      # IR-01. The service's URL, e.g. https://budget-forecast-XXXX.onrender.com.
+      # IR-01. The service's URL: https://budget-forecast-e8ad.onrender.com
       # Set in the dashboard, not committed.
       - key: FORECAST_API_URL
         sync: false

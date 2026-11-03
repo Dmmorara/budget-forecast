@@ -67,9 +67,9 @@ change to agree with the consuming teams first.
 ## Build
 
 ```bash
-flutter build web --dart-define=FORECAST_API_URL=https://<service>.onrender.com \
+flutter build web --dart-define=FORECAST_API_URL=https://budget-forecast-e8ad.onrender.com \
   --dart-define=DATA_LAST_MONTH=2026-09
-flutter build apk --dart-define=FORECAST_API_URL=https://<service>.onrender.com \
+flutter build apk --dart-define=FORECAST_API_URL=https://budget-forecast-e8ad.onrender.com \
   --dart-define=DATA_LAST_MONTH=2026-09
 ```
 
