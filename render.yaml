@@ -78,11 +78,17 @@ services:
     runtime: static
     branch: main
     autoDeploy: true
-    buildCommand: bash client/tool/render_build.sh
-    staticPublishPath: ./client/build/web
+
+    # Build from client/ alone. From the repository root, Render finds the
+    # service's requirements.txt and pip-installs it into a build that only
+    # needs Flutter. The build command and publish path are relative to this.
+    rootDir: client
+    buildCommand: bash tool/render_build.sh
+    staticPublishPath: ./build/web
 
     # Rebuild only when the client changes. A service-only change would
-    # otherwise refetch Flutter and rebuild an identical app.
+    # otherwise refetch Flutter and rebuild an identical app. These paths are
+    # relative to the repository root, not to rootDir.
     buildFilter:
       paths:
         - client/**
