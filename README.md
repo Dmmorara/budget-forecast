@@ -110,6 +110,7 @@ scripts/
   analyse_sandbox.py    reproduces SANDBOX_RESULTS.md's autocorrelation, oracle
                         and dependants figures (needs the full extract)
   smoke_test.py         checks a deployed URL answers the contract
+  measure_latency.py    times warm POST /forecast calls for NFR-07
 tests/
   test_contract.py      the shape other teams rely on
   test_synthetic.py     the generator, and that it stays non-stationary
@@ -118,6 +119,7 @@ tests/
   test_model.py         the model, paired across populations
 BASELINE.md      the number to beat, and where the removable error lives
 MODEL.md         what beat it, what did not, and why three components were cut
+PERFORMANCE.md   NFR-07 response times against the deployed service
 client/          the Flutter app (Android, web, iOS) — see client/README.md
 ```
 
