@@ -113,7 +113,7 @@ scripts/
   measure_latency.py    times warm POST /forecast calls for NFR-07
   build_panel.py        the fitted ensemble's feature panel (needs the full extract)
   fit_model.py          reproduces every number in MODEL_ENSEMBLE.md, and writes
-                        models/extratrees-v1 (--model extratrees)
+                        the shipped models/extratrees-v2 (--model extratrees --disjoint)
   measure_model_memory.py  resident memory of the service with the model loaded
 tests/
   test_contract.py      the shape other teams rely on
