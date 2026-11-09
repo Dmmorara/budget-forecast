@@ -37,13 +37,15 @@ app.data. Never reads households.csv or dependants.csv. Synthetic data.
 from __future__ import annotations
 
 import calendar
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from app.data import DATA_DIR, load_budgets, load_monthly
+from app.data import DATA_DIR, PUBLIC_DIR, load_budgets, load_monthly
 from app.evaluate import _month_keys
 from app.forecaster import BudgetBlendForecaster
+from scripts.minimise_extract import slice_alias
 
 BLEND_WEIGHT = 0.8  # the shipped blend's share for history
 
@@ -208,6 +210,52 @@ def features_for(
     return _one_hot(
         _features(amounts, seen, _budget_lookup(budgets).get(user_id, {}), mkey)
     )
+
+
+def deployed_households(
+    data_dir: Path = DATA_DIR, public_dir: Path = PUBLIC_DIR
+) -> dict[str, str]:
+    """
+    `{platform id: local id}` for the households the deployment serves, from
+    scripts.minimise_extract's own selection, then checked record for record
+    against the committed slice so that a change to either side cannot
+    silently pick different households.
+    """
+    cols = ["user_id", "transaction_date", "category", "amount_kes"]
+    raw = pd.read_csv(
+        data_dir / "spending_records.csv",
+        usecols=["user_profile_id", "transaction_date", "category", "amount_kes"],
+    )
+    public = pd.read_csv(public_dir / "spending_records.csv")[cols]
+    # The slice's size is read from the slice, not assumed: a slice cut with
+    # --households 40 must map back to 40.
+    alias = slice_alias(
+        raw["user_profile_id"].astype(str).unique(), n=public["user_id"].nunique()
+    )
+    mine = (
+        raw[raw["user_profile_id"].astype(str).isin(alias)]
+        .assign(user_id=lambda d: d["user_profile_id"].astype(str).map(alias))[cols]
+        .sort_values(cols).reset_index(drop=True)
+    )
+    public = public.sort_values(cols).reset_index(drop=True)
+    if not mine.equals(public):
+        raise SystemExit("slice_alias does not reproduce data/public/; refusing to fit.")
+    return alias
+
+
+def training_panel(
+    panel: pd.DataFrame, deployed, first: int, last: int
+) -> pd.DataFrame:
+    """
+    Panel rows for target months `first`-`last`, with every deployed
+    household removed. This is the only way the shipped model's training
+    rows are chosen; tests/test_disjoint.py holds it to that.
+    """
+    served = {str(h) for h in deployed}
+    rows = panel[panel["month_index"].between(first, last)]
+    rows = rows[~rows["user_id"].astype(str).isin(served)]
+    assert not set(rows["user_id"].astype(str)) & served
+    return rows
 
 
 def check_blend(

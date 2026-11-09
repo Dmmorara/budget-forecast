@@ -117,15 +117,15 @@ jobs:
           #   data/public/  a minimised, pseudonymised slice with no names;
           #                 scripts/minimise_extract.py documents exactly what
           #                 it contains.
-          #   models/extratrees-v1.joblib  the shipped model, by exact path;
+          #   models/extratrees-v2.joblib  the shipped model, by exact path;
           #                 its SHA-256 is in its manifest. Any other
           #                 .joblib, including a stray ensemble artefact, still
-          #                 fails here. A new model version adds its own line.
+          #                 fails here. A new model version replaces this path.
           # Everything else is rejected.
           OFFENDING=$(git ls-files \
             | grep -Ei '(^|/)\.env$|\.(xlsx|xls|csv|pkl|joblib)$' \
             | grep -v '^data/public/' \
-            | grep -vx 'models/extratrees-v1\.joblib' || true)
+            | grep -vx 'models/extratrees-v2\.joblib' || true)
           if [ -n "$OFFENDING" ]; then
             echo "$OFFENDING"
             echo "::error::a secret or data extract is tracked - see CONTRIBUTING.md"
