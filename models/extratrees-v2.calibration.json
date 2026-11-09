@@ -30,5 +30,177 @@
     "upper": 0.22348711064517943
   },
   "git_head": "707fa231029667ff83bc7ea34171a3072fe92edd",
-  "verification": null
+  "verification": {
+    "months": "2026-07 to 2026-09",
+    "attempts": [
+      {
+        "nominal": 0.8,
+        "groups": {
+          "trained_440": {
+            "n": 1320,
+            "conformal": {
+              "coverage": 0.8053,
+              "width_share": 0.312,
+              "volatile": {
+                "fires": 0,
+                "of": 1320,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 8319.7,
+                "mape_clean": 10.13
+              }
+            },
+            "tree_spread": {
+              "coverage": 0.3121,
+              "width_share": 0.101,
+              "volatile": {
+                "fires": 0,
+                "of": 1320,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 8319.7,
+                "mape_clean": 10.13
+              }
+            },
+            "blend": {
+              "coverage": 0.9182,
+              "width_share": 0.433,
+              "volatile": {
+                "fires": 44,
+                "of": 1320,
+                "mae_flagged": 11903.5,
+                "mape_flagged": 16.22,
+                "mae_clean": 8813.1,
+                "mape_clean": 10.8
+              }
+            }
+          },
+          "deployed_60": {
+            "n": 180,
+            "conformal": {
+              "coverage": 0.7889,
+              "width_share": 0.312,
+              "volatile": {
+                "fires": 0,
+                "of": 180,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 9086.3,
+                "mape_clean": 11.19
+              }
+            },
+            "tree_spread": {
+              "coverage": 0.2611,
+              "width_share": 0.103,
+              "volatile": {
+                "fires": 0,
+                "of": 180,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 9086.3,
+                "mape_clean": 11.19
+              }
+            },
+            "blend": {
+              "coverage": 0.8944,
+              "width_share": 0.424,
+              "volatile": {
+                "fires": 5,
+                "of": 180,
+                "mae_flagged": 8419.3,
+                "mape_flagged": 13.8,
+                "mae_clean": 9144.6,
+                "mape_clean": 11.15
+              }
+            }
+          }
+        },
+        "passed": false
+      },
+      {
+        "nominal": 0.9,
+        "groups": {
+          "trained_440": {
+            "n": 1320,
+            "conformal": {
+              "coverage": 0.9083,
+              "width_share": 0.41,
+              "volatile": {
+                "fires": 0,
+                "of": 1320,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 8319.7,
+                "mape_clean": 10.13
+              }
+            },
+            "tree_spread": {
+              "coverage": 0.3121,
+              "width_share": 0.101,
+              "volatile": {
+                "fires": 0,
+                "of": 1320,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 8319.7,
+                "mape_clean": 10.13
+              }
+            },
+            "blend": {
+              "coverage": 0.9182,
+              "width_share": 0.433,
+              "volatile": {
+                "fires": 44,
+                "of": 1320,
+                "mae_flagged": 11903.5,
+                "mape_flagged": 16.22,
+                "mae_clean": 8813.1,
+                "mape_clean": 10.8
+              }
+            }
+          },
+          "deployed_60": {
+            "n": 180,
+            "conformal": {
+              "coverage": 0.8944,
+              "width_share": 0.41,
+              "volatile": {
+                "fires": 0,
+                "of": 180,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 9086.3,
+                "mape_clean": 11.19
+              }
+            },
+            "tree_spread": {
+              "coverage": 0.2611,
+              "width_share": 0.103,
+              "volatile": {
+                "fires": 0,
+                "of": 180,
+                "mae_flagged": null,
+                "mape_flagged": null,
+                "mae_clean": 9086.3,
+                "mape_clean": 11.19
+              }
+            },
+            "blend": {
+              "coverage": 0.8944,
+              "width_share": 0.424,
+              "volatile": {
+                "fires": 5,
+                "of": 180,
+                "mae_flagged": 8419.3,
+                "mape_flagged": 13.8,
+                "mae_clean": 9144.6,
+                "mape_clean": 11.15
+              }
+            }
+          }
+        },
+        "passed": true
+      }
+    ]
+  }
 }

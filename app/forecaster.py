@@ -473,6 +473,19 @@ def conformal_bounds(point, offsets: tuple[float, float], scale: str):
     return low, np.maximum(high, low)
 
 
+def _fallback_verified(offsets: dict, name: str) -> bool:
+    """True if the recorded verification calls for the fallback offsets."""
+    attempts = (offsets.get("verification") or {}).get("attempts", [])
+    if not attempts or attempts[0]["passed"]:
+        return False
+    if len(attempts) > 1 and attempts[1]["passed"]:
+        return True
+    raise ModelArtefactError(
+        f"{name}: the interval failed its holdout verification and the "
+        "fallback has not passed one; refusing to serve it."
+    )
+
+
 class ModelArtefactError(RuntimeError):
     """The artefact or its manifest cannot be trusted. Raised at construction."""
 
@@ -512,9 +525,11 @@ class ExtraTreesForecaster:
     interval measures, and not the spread of the trees, which measures how
     much the forest disagrees with itself rather than how wrong it is.
 
-    `use_fallback` selects the wider offsets recorded, before the holdout was
-    read, for use if the calibrated ones under-cover. Off unless the
-    calibration file says they are needed.
+    Which offsets are served follows the calibration file's recorded holdout
+    verification: the calibrated ones if the first verification passed, the
+    wider fallback (fixed before the holdout was read) if the first failed and
+    the second passed, and none at all if both failed. `use_fallback` overrides
+    that, for the verification itself.
     """
 
     def __init__(
@@ -523,7 +538,7 @@ class ExtraTreesForecaster:
         manifest: Path | None = None,
         budgets: pd.DataFrame | None = None,
         calibration: Path | None = None,
-        use_fallback: bool = False,
+        use_fallback: bool | None = None,
     ):
         artefact = Path(artefact)
         manifest = (
@@ -582,7 +597,10 @@ class ExtraTreesForecaster:
                 f"{calibration.name} was calibrated for a different artefact; "
                 "refusing to serve its interval with this one."
             )
+        if use_fallback is None:
+            use_fallback = _fallback_verified(offsets, calibration.name)
         chosen = offsets["fallback_if_undercovered"] if use_fallback else offsets
+        self.interval_nominal = float(chosen["nominal"])
         self._scale = offsets["scale"]
         self._offsets = (float(chosen["lower"]), float(chosen["upper"]))
         self._budget = budget_lookup(budgets) if budgets is not None else {}

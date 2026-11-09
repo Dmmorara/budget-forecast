@@ -107,14 +107,31 @@ def test_rejects_an_artefact_whose_sha256_does_not_match_the_manifest(tmp_path):
 # ── the interval and the confidence ──
 
 
-def test_the_interval_brackets_the_point_and_is_the_calibrated_width(forecaster, public):
+def test_serves_the_offsets_its_holdout_verification_passed(forecaster, public):
+    """The 80% offsets under-covered the 60 deployed households (78.9%), so
+    the fallback fixed before the holdout was read is what is served."""
     calibration = json.loads(CALIBRATION.read_text())
+    attempts = calibration["verification"]["attempts"]
+    assert [a["passed"] for a in attempts] == [False, True]
+    served = calibration["fallback_if_undercovered"]
+    assert forecaster.interval_nominal == served["nominal"] == 0.90
+
     assert calibration["scale"] == "relative"
     for user in ("h001", "h017", "h060"):
         fc = forecaster.forecast(public[0], user, 2026, 10)
         assert 0 <= fc.low <= fc.total <= fc.high
-        assert fc.low == pytest.approx(fc.total * (1 + calibration["lower"]), abs=0.01)
-        assert fc.high == pytest.approx(fc.total * (1 + calibration["upper"]), abs=0.01)
+        assert fc.low == pytest.approx(fc.total * (1 + served["lower"]), abs=0.01)
+        assert fc.high == pytest.approx(fc.total * (1 + served["upper"]), abs=0.01)
+
+
+def test_refuses_to_serve_an_interval_that_failed_both_verifications(tmp_path):
+    failed = json.loads(CALIBRATION.read_text())
+    for attempt in failed["verification"]["attempts"]:
+        attempt["passed"] = False
+    calibration = tmp_path / "failed.calibration.json"
+    calibration.write_text(json.dumps(failed))
+    with pytest.raises(ModelArtefactError, match="failed its holdout verification"):
+        ExtraTreesForecaster(calibration=calibration)
 
 
 def test_refuses_a_calibration_made_for_another_artefact(tmp_path):
