@@ -112,7 +112,8 @@ scripts/
   smoke_test.py         checks a deployed URL answers the contract
   measure_latency.py    times warm POST /forecast calls for NFR-07
   build_panel.py        the fitted ensemble's feature panel (needs the full extract)
-  fit_model.py          reproduces every number in MODEL_ENSEMBLE.md
+  fit_model.py          reproduces every number in MODEL_ENSEMBLE.md, and writes
+                        models/extratrees-v1 (--model extratrees)
   measure_model_memory.py  resident memory of the service with the model loaded
 tests/
   test_contract.py      the shape other teams rely on
@@ -123,7 +124,7 @@ tests/
 BASELINE.md      the number to beat, and where the removable error lives
 MODEL.md         what beat it, what did not, and why three components were cut
 PERFORMANCE.md   NFR-07 response times against the deployed service
-MODEL_ENSEMBLE.md  the fitted ensemble against the shipped blend (not shipped)
+MODEL_ENSEMBLE.md  the fitted model: ensemble tried, ExtraTrees chosen (not yet in app/)
 requirements-train.txt  scikit-learn, for the ensemble scripts only
 client/          the Flutter app (Android, web, iOS) — see client/README.md
 ```
