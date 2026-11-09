@@ -186,6 +186,100 @@ def analyse(totals: pd.DataFrame) -> dict:
             "n": int(len(totals))}
 
 
+# Normalised (locally weighted) conformal prediction: the nonconformity score
+# is |residual| / (point * u), with u a household-specific scale term from its
+# history before the target month, and the interval is point * (1 +/- q * u).
+# Papadopoulos, Vovk & Gammerman (2011); Lei et al. (2018). Evaluated on months
+# 13-15 and NOT adopted: see MODEL_ENSEMBLE.md, "The volatile flag".
+SCALE_DEFINITIONS = ("none", "cv", "n", "cv_n")
+
+
+def household_scale(prior: np.ndarray, definition: str) -> float:
+    """
+    The candidate scale term u, from the household's monthly totals before
+    the target month only:
+
+      none   1                           (every household alike)
+      cv     CV of the prior totals      (how much this household varies)
+      n      sqrt(1 + 1/n)               (how long its history is)
+      cv_n   CV * sqrt(1 + 1/n)          (both)
+    """
+    totals = np.asarray(prior, dtype=float)
+    n = len(totals)
+    mean = float(totals.mean()) if n else 0.0
+    cv = float(totals.std(ddof=1) / mean) if n > 1 and mean > 0 else 0.0
+    root = float(np.sqrt(1 + 1 / n)) if n else float("inf")
+    return {"none": 1.0, "cv": cv, "n": root, "cv_n": cv * root}[definition]
+
+
+def prior_totals(monthly: pd.DataFrame):
+    """`(user_id, mkey) -> monthly totals strictly before mkey`, as a function."""
+    table = (
+        monthly.assign(mkey=monthly["year"] * 12 + monthly["month"])
+        .groupby(["user_id", "mkey"])["amount"].sum().unstack()
+    )
+
+    def lookup(user_id: str, mkey: int) -> np.ndarray:
+        row = table.loc[user_id]
+        return row[row.index < mkey].dropna().to_numpy()
+
+    return lookup
+
+
+def normalised_offsets(scores: np.ndarray, nominal: float) -> float:
+    """The conformal quantile of |residual| / scale: the ceil((n+1)p)-th smallest."""
+    s = np.sort(np.asarray(scores, dtype=float))
+    k = min(len(s), math.ceil((len(s) + 1) * nominal))
+    return float(s[k - 1])
+
+
+def _spread(share: np.ndarray) -> str:
+    q = np.percentile(share, [10, 25, 50, 75, 90])
+    return (f"mean {share.mean():.3f} sd {share.std():.3f} | p10 {q[0]:.3f} p25 {q[1]:.3f} "
+            f"p50 {q[2]:.3f} p75 {q[3]:.3f} p90 {q[4]:.3f}")
+
+
+def analyse_normalised(totals: pd.DataFrame, nominal: float) -> dict:
+    """Every candidate scale on months 13-15: coverage, its spread, the flag."""
+    monthly, _ = load_monthly()
+    prior = prior_totals(monthly)
+    pred, actual, r = (totals[c].to_numpy() for c in ("pred", "actual", "residual"))
+    cv = np.array([household_scale(prior(u, k), "cv") for u, k in zip(totals.user_id, totals.mkey)])
+    cv_q = pd.qcut(cv, 5, labels=[f"CV-Q{i}" for i in range(1, 6)])
+
+    print(f"Normalised conformal on months 13-15, nominal {nominal:.0%}. "
+          f"{len(totals)} household-months, 440 households.\n"
+          f"Spearman(CV, |residual| / pred) = "
+          f"{pd.Series(cv).corr(pd.Series(np.abs(r) / pred), method='spearman'):+.3f}\n")
+    found = {}
+    for definition in SCALE_DEFINITIONS:
+        u = np.array([household_scale(prior(a, k), definition)
+                      for a, k in zip(totals.user_id, totals.mkey)])
+        q = normalised_offsets(np.abs(r) / (pred * u), nominal)
+        low, high = np.maximum(pred * (1 - q * u), 0.0), pred * (1 + q * u)
+        share = (high - low) / pred
+        covered = _covered(actual, low, high)
+        fires = share > VOLATILE_REL_WIDTH
+        err = np.abs(r)
+        by_cv = pd.Series(covered).groupby(cv_q, observed=True).mean()
+        print(f"[{definition}]  q = {q:.4f}")
+        print(f"  coverage {covered.mean():.1%}   by CV quintile: "
+              + "  ".join(f"{k} {v:.1%}" for k, v in by_cv.items()))
+        print(f"  span/point  {_spread(share)}")
+        print(f"  flag fires {int(fires.sum())}/{len(fires)} ({fires.mean():.1%})", end="")
+        if fires.any() and (~fires).any():
+            print(f"   MAE fired {err[fires].mean():,.1f} vs not {err[~fires].mean():,.1f}"
+                  f"   MAPE fired {np.mean(err[fires] / actual[fires]) * 100:.2f}% "
+                  f"vs not {np.mean(err[~fires] / actual[~fires]) * 100:.2f}%")
+        else:
+            print()
+        found[definition] = {"q": q, "coverage": float(covered.mean()),
+                             "fires": int(fires.sum()),
+                             "share_sd": float(share.std())}
+        print()
+    return found
+
+
 def git_head() -> tuple[str, bool]:
     sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                          check=True).stdout.strip()
@@ -333,6 +427,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("analyse")
+    sub.add_parser("analyse-normalised")
     w = sub.add_parser("write")
     w.add_argument("--scale", choices=("absolute", "relative"), required=True)
     sub.add_parser("verify")
@@ -342,6 +437,8 @@ def main() -> None:
         raise SystemExit("Needs the full sandbox extract in data/.")
     if args.cmd == "analyse":
         analyse(calibration_set())
+    elif args.cmd == "analyse-normalised":
+        analyse_normalised(calibration_set(), FALLBACK_NOMINAL)
     elif args.cmd == "write":
         write(args.scale)
     else:

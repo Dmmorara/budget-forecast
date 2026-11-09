@@ -395,10 +395,158 @@ The blend's flag, which is built from the household's own history, still
 works where there is enough data. On the 440 it fires on 44 household-months
 with MAE 11,903.5 against 8,813.1 where it does not. On the 60 it fires 5
 times, with MAE 8,419.3 against 9,144.6, the wrong way round, but 5 cases
-decide nothing. If the model's response is to carry a meaningful volatile
-flag, it needs a household-specific input such as that history-based width,
-chosen on months 13–15. That is a decision for the wiring step, and nothing
-here was tuned toward it.
+decide nothing. The obvious repair was to make the model's interval
+household-specific. It was tried, on months 13–15 only, and it does not
+work. The next section explains why.
+
+### Normalised conformal does not rescue it
+
+```bash
+python3 -m scripts.calibrate_interval analyse-normalised    # months 13-15 only
+```
+
+Normalised, or locally weighted, conformal prediction divides each
+residual by a household-specific scale term u before taking the quantile,
+then multiplies back. That keeps the marginal coverage guarantee while
+letting the width vary (Papadopoulos, Vovk & Gammerman, 2011; Lei, G'Sell,
+Rinaldo, Tibshirani & Wasserman, 2018). Here the score is
+|residual| / (point × u) and the interval is point × (1 ± q·u), with u
+computed from the household's monthly totals before the target month only.
+Four candidates for u were fixed before anything was measured: 1 (the
+current interval), the CV of those totals, √(1 + 1/n) for history length,
+and the two combined. Each was judged on months 13–15 at the served 90%
+nominal level, on two criteria together: coverage holds, and span/point
+varies enough for the 60% threshold to separate households.
+
+| u | coverage | coverage by CV quintile (lowest → highest) | span/point: mean, sd | p10 / p50 / p90 | flag fires | MAE when the flag fires vs not | MAPE when the flag fires vs not |
+|---|---|---|---|---|---|---|---|
+| 1 | 90.0% | 88.3 / 89.4 / 88.6 / 93.2 / 90.5% | 0.400, 0.000 | 0.400 / 0.400 / 0.400 | 0 | — | — |
+| √(1 + 1/n) | 90.1% | 88.6 / 89.4 / 88.6 / 93.2 / 90.5% | 0.399, 0.001 | 0.398 / 0.399 / 0.400 | 0 | — | — |
+| CV | 90.1% | **75.0** / 86.0 / 92.8 / 97.7 / 98.9% | 0.556, 0.383 | 0.305 / 0.437 / 0.837 | 296 (22.4%) | 8,282.5 vs 7,935.6 | 10.20% vs 10.34% |
+| CV × √(1 + 1/n) | 90.1% | **75.0** / 86.0 / 92.8 / 97.7 / 98.9% | 0.556, 0.383 | 0.305 / 0.436 / 0.838 | 295 (22.3%) | 8,293.1 vs 7,932.9 | 10.21% vs 10.33% |
+
+- **History length cannot vary the width.** Every calibration household has
+  12, 13 or 14 months, and which one depends only on the target month.
+- **CV varies the width, but not with the error.** The spread is real (sd
+  0.383), and the flag fires on 22% of household-months. But the model's
+  relative error is unrelated to a household's CV: Spearman −0.035 between
+  CV and |residual| / point. So the width moves without any matching change
+  in error:
+  - the steadiest fifth of households are covered 75%, below the 80% in
+    NFR-01, and the most volatile fifth 98.9%;
+  - where the flag fires, KES error is 4% higher (Welch t = +0.50), only
+    because those households forecast larger totals (78,178 against 74,182);
+  - relative error is slightly lower there (t = −0.25).
+  The flag would mark households whose past spending varied, not forecasts
+  that are less reliable.
+
+**So no scale definition makes the 60% threshold discriminate while
+holding coverage.** Following the rule set before this was tried, the
+holdout was not opened for it and nothing was adopted. The served interval
+is unchanged.
+
+**The finding: FR-07's flag is incompatible with a calibrated interval for
+this model.** The rule is "the range spans more than 60% of the point
+forecast". That is a fixed fraction of the point, and a calibrated interval
+is as wide as the model's errors. This model's errors scale with the point
+and with nothing else measured here. So the honest interval is a constant
+share of the point, and no threshold on that share can separate households.
+Making the width vary on purpose, as the CV scaling does, buys a flag that
+fires by breaking coverage for steady households, and the flagged forecasts
+are not in fact worse. The blend's flag discriminated (MAE 11,903.5 against
+8,813.1 on the 440) because the blend's errors are larger for the most volatile
+households. The model has removed that relationship, and with it the thing
+the flag was detecting (measured in the next section).
+
+**Two amendments were proposed:** define the flag on the household, or drop
+`volatile` for the model's forecasts. The first was adopted (next section).
+
+References:
+Papadopoulos, H., Vovk, V. and Gammerman, A. (2011). Regression conformal
+prediction with nearest neighbours. *Journal of Artificial Intelligence
+Research*, 40, 815–840.
+Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J. and Wasserman, L. (2018).
+Distribution-free predictive inference for regression. *Journal of the
+American Statistical Association*, 113(523), 1094–1111.
+
+### The volatile flag, amended (FR-07)
+
+```bash
+python3 -m scripts.volatile_threshold choose    # months 13-15 only
+python3 -m scripts.volatile_threshold verify    # months 16-18
+```
+
+The requirement this replaces is FR-07 in Chapter 4: "The service shall
+flag a forecast as volatile when its range spans more than 60% of the point
+forecast", verified by `test_volatile_flag_predicts_larger_error`.
+
+**What the flag now claims, and what it does not.** `volatile` marks a
+household whose monthly spending is unsteady. It fires when the coefficient
+of variation of the household's monthly totals before the target month
+exceeds 0.4587. It makes **no** claim that the forecast for that household
+is less accurate, because for the model no such relationship holds. Both
+served forecasters, the blend and `extratrees-v2`, compute it through one
+function, `app.forecaster.household_cv`. The blend's interval and confidence
+are unchanged; only its flag changed. The baselines, which are not served,
+keep the width rule that BASELINE.md and MODEL.md report.
+
+**Why the width rule had to go: it was measuring a weakness of the
+blend.** On months 13–15, for the 440 training households:
+
+| | blend | model (4–12 calibration fit) |
+|---|---|---|
+| Spearman(household CV, \|error\| / point) | +0.053 | −0.035 |
+| MAPE by CV quintile, Q1 → Q5 | 10.92 / 10.10 / 10.76 / 10.13 / **14.02%** | 10.97 / 10.25 / 10.43 / 9.61 / 10.27% |
+| MAPE, top 4.8% by CV vs the rest | **19.55% vs 10.77%** | 9.39% vs 10.35% |
+
+The blend's errors are larger for the most volatile households. The effect
+is confined to the top fifth, which is why the rank correlation over
+everyone is weak. The blend forecasts from a mean of all past months, and for
+a household whose spending swings, that mean is a poor guide to next month.
+The model's errors show no such pattern in any quintile. The old flag
+predicted error (blend MAPE 16.68% where it fired against 10.91%) because it
+was, in effect, detecting the households the blend forecasts badly. With
+the model in place that signal no longer exists, so a flag claiming "this
+forecast is less reliable" would be false.
+
+**The old and new flags mark different months.** On 13–15 each fires on 63
+of 1,320 household-months, but only 10 are the same. The old rule
+mostly caught months where the blend forecast high: mean signed error
++11.75%, against +3.67% elsewhere. The new rule marks the households whose
+own spending varies.
+
+**The threshold is set by a firing rate, not a round number.** The rate is
+4.8% (63 of 1,320), what the old rule fired at on the same household-months.
+It was chosen so the amendment changes what the flag means and not how often
+consumers, the client and U-CS 38, see it. 0.4587 is the CV that gives that
+rate: the midpoint between the 63rd- and 64th-highest household CVs. For
+scale, the median household's CV is 0.124 and the 95th percentile 0.453.
+
+**Verified once on months 16–18**, as a check on the claim, not as a
+requirement:
+
+| | flag fires | blend MAE, fires vs not (t) | blend MAPE, fires vs not (t) | model MAE, fires vs not (t) | model MAPE, fires vs not (t) |
+|---|---|---|---|---|---|
+| 440 trained | 61 / 1,320 = 4.6% | 15,197.9 vs 8,611.8 (+4.12) | 18.77% vs 10.60% (+6.10) | 8,693.7 vs 8,301.6 (+0.27) | 9.68% vs 10.15% (−0.49) |
+| 60 deployed | 3 / 180 = 1.7% | 17,168.9 vs 8,988.2 (+0.85) | 18.07% vs 11.11% (+0.65) | 11,777.1 vs 9,040.7 (+0.56) | 11.52% vs 11.19% (+0.06) |
+
+The firing rate held on the 440: 4.6% against the 4.8% it was set for,
+within the ±3-point tolerance fixed in the test beforehand. On the 60 it
+fires 3 times, too few to judge a rate, and the slice may simply hold fewer
+unsteady households. The error columns bear out the claim. Where the flag
+fires, the blend is markedly worse and the model is not. The flag tells a
+consumer about the household; for the model it says nothing about the
+forecast.
+
+**FR-07 as amended**, for the Chapter 4 table:
+
+> **FR-07.** The service shall flag a household as "volatile" when the
+> coefficient of variation of its monthly spending totals, over the months
+> before the target month, exceeds 0.4587. The threshold gives a 4.8% firing
+> rate on the validation months. The flag describes the household's
+> spending; it does not indicate that the forecast is less accurate.
+> Priority M. Source: Done-when, amended in Chapter 5. Verification:
+> `test_volatile_flag_marks_households_whose_spending_varies`.
 
 ### For Chapter 5
 
@@ -414,7 +562,11 @@ fires against those where it does not.
 | tree spread, p10–p90 of 40 trees | 31.2% | 26.1% | 0.101 / 0.103 | 0 / 0 | — | — |
 
 The 60-household coverage figures rest on 180 observations, so each has a
-standard error of about ±2–3 points.
+standard error of about ±2–3 points. The flag columns use FR-07's original
+width rule, which is why it never fires on the conformal rows. Under the
+amended, household-based flag, both served forecasters fire on 4.6% of the
+440 and 1.7% of the 60; see "The volatile flag, amended" for its error
+comparison.
 
 ---
 
@@ -475,7 +627,7 @@ stage model files by explicit path, never `git add models/`.
 
 ## What shipping would take
 
-Steps 1–4 are done; the service does not use the model yet.
+Steps 1–5 are done; the service does not use the model yet.
 
 1. **Done.** `scikit-learn==1.5.2` and `joblib==1.6.0`, the versions the
    manifest records, are in `requirements.txt`. The service image goes from
@@ -499,5 +651,7 @@ Steps 1–4 are done; the service does not use the model yet.
 4. **Done.** Interval and confidence: split-conformal interval at nominal
    90% after the 80% one failed on the 60 deployed households, and the
    household-steadiness confidence (see "The interval").
-5. Wire it into `app/service.py`, and give the volatile flag a basis that
-   can fire. Under this interval the 60% width rule never does.
+5. **Done.** FR-07 amended: `volatile` describes the household (CV of prior
+   monthly totals above 0.4587), identically for the blend and the model
+   (see "The volatile flag, amended").
+6. Wire the model into `app/service.py`.
