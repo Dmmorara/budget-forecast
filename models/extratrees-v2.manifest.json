@@ -15,6 +15,15 @@
   "training_rows": 57000,
   "excluded_households": "the 60 in data/public/, selected by scripts.minimise_extract.slice_alias and checked record for record",
   "deployed_households_in_training": 0,
+  "validation": {
+    "reselected": false,
+    "statement": "Configuration fixed by extratrees-v1's validation run and not re-selected for this fit. It was chosen as ExtraTrees alone, capped (variant C), fitted on target months 4-12 and scored on 13-15 with all 500 households, alongside the bias-corrected ensemble (variant B) it was compared with. See MODEL_ENSEMBLE.md.",
+    "selected_by": "extratrees-v1: git_head dc48878, manifest committed in 87b9a0a",
+    "months": "2026-04 to 2026-06",
+    "mae": 7848.5,
+    "cat_mae": 1779.4,
+    "signed_error": 346.7
+  },
   "features": [
     "mean_all",
     "mean_3",
@@ -55,7 +64,7 @@
     "numpy": "2.1.1",
     "joblib": "1.6.0"
   },
-  "git_head": "9f6e0203bfeca00a3db4e7b75e321e64930ee719",
+  "git_head": "5f886bc7d2b2372b82f9a1cfccbf9b060b0ad27b",
   "git_tracked_changes_uncommitted": false,
   "data": "SYNTHETIC platform sandbox, data/spending_records.csv",
   "holdout": {
