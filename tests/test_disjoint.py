@@ -139,6 +139,12 @@ def test_every_committed_model_records_no_deployed_household_in_training():
         assert manifest.get("deployed_households_in_training") == 0, (
             f"{path.name} does not record a household-disjoint fit"
         )
+        # The selection evidence must be there, or an explicit statement of
+        # where it lives. A missing or null field reads as missing evidence.
+        selection = manifest.get("validation")
+        assert isinstance(selection, dict) and selection, (
+            f"{path.name} does not record how its configuration was selected"
+        )
         artefact = MODELS_DIR / manifest["artefact"]
         digest = hashlib.sha256(artefact.read_bytes()).hexdigest()
         assert digest == manifest["sha256"], f"{artefact.name} does not match its manifest"

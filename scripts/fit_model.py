@@ -107,6 +107,26 @@ EXTRATREES_V1 = {
     "n_estimators": 40, "max_depth": 12, "min_samples_leaf": 20, "max_features": 1.0,
 }
 
+# The evidence EXTRATREES_V1 was selected on, as extratrees-v1's manifest
+# recorded it (written at dc48878, committed in 87b9a0a). extratrees-v2 reuses
+# the configuration without re-selecting it, and its manifest says so rather
+# than leaving the selection out.
+EXTRATREES_V1_SELECTION = {
+    "reselected": False,
+    "statement": (
+        "Configuration fixed by extratrees-v1's validation run and not "
+        "re-selected for this fit. It was chosen as ExtraTrees alone, capped "
+        "(variant C), fitted on target months 4-12 and scored on 13-15 with "
+        "all 500 households, alongside the bias-corrected ensemble (variant B) "
+        "it was compared with. See MODEL_ENSEMBLE.md."
+    ),
+    "selected_by": "extratrees-v1: git_head dc48878, manifest committed in 87b9a0a",
+    "months": "2026-04 to 2026-06",
+    "mae": 7848.5,
+    "cat_mae": 1779.4,
+    "signed_error": 346.7,
+}
+
 TARGETS = {
     "current": {"ridge_log": True, "hist_gb_loss": "absolute_error"},
     "fixed": {"ridge_log": False, "hist_gb_loss": "squared_error"},
@@ -602,6 +622,7 @@ def ship_extratrees_disjoint() -> None:
             "scripts.minimise_extract.slice_alias and checked record for record"
         ),
         "deployed_households_in_training": 0,
+        "validation": EXTRATREES_V1_SELECTION,
         "features": FEATURES,
         "random_state": RANDOM_STATE,
         "versions": {
