@@ -7,6 +7,8 @@ the shipped blend. Reproduces every number in MODEL_ENSEMBLE.md.
     python3 -m scripts.fit_model --capped   # tree size capped -> models/ensemble-v1-capped.*
     python3 -m scripts.fit_model --targets fixed --validate-only [--capped]
                                             # months 13-15 only; nothing written
+    python3 -m scripts.fit_model --model extratrees
+                                            # what ships -> models/extratrees-v1.*
 
 --targets chooses what Ridge and HistGB estimate. `current` (the default, and
 what MODEL_ENSEMBLE.md reports) fits Ridge on log1p(spend) and HistGB with
@@ -96,6 +98,13 @@ CAPS = {
     "hist_gb": {"max_depth": 6},
 }
 
+# What ships: ExtraTrees alone, capped, on the raw target. Chosen on months
+# 13-15 (MODEL_ENSEMBLE.md), where it matched the bias-corrected ensemble on
+# category MAE and beat it on MAE, with a mean signed error of +346.7.
+EXTRATREES_V1 = {
+    "n_estimators": 40, "max_depth": 12, "min_samples_leaf": 20, "max_features": 1.0,
+}
+
 TARGETS = {
     "current": {"ridge_log": True, "hist_gb_loss": "absolute_error"},
     "fixed": {"ridge_log": False, "hist_gb_loss": "squared_error"},
@@ -142,10 +151,14 @@ def predict(
 
 
 def predict_ensemble(bundle: dict, rows: pd.DataFrame) -> np.ndarray:
-    """Equal-weight mean of the three learners, on the original scale."""
+    """
+    Equal-weight mean of the bundle's learners, on the original scale. A
+    bundle with one learner, as extratrees-v1 has, returns that learner's
+    prediction.
+    """
     targets = bundle.get("targets", "current")
     return np.mean(
-        [predict(name, bundle["learners"][name], rows, targets) for name in LEARNERS],
+        [predict(name, model, rows, targets) for name, model in bundle["learners"].items()],
         axis=0,
     )
 
@@ -307,8 +320,148 @@ def month_label(monthly: pd.DataFrame, index: int) -> str:
     return f"{year:04d}-{month:02d}"
 
 
+def ship_extratrees() -> None:
+    """
+    Fit EXTRATREES_V1 on targets 4-15, score it once on 16-18 against the
+    blend, and write models/extratrees-v1.*. Nothing else is scored on the
+    holdout. Refuses a dirty tree, so the manifest's git_head is the commit
+    that produced the artefact.
+    """
+    sha, dirty = git_head()
+    if dirty:
+        raise SystemExit("Tracked files have uncommitted changes. Commit first.")
+
+    tag = "extratrees-v1"
+    monthly, _ = load_monthly()
+    budgets = load_budgets()
+    panel = build(monthly, budgets)
+    assert panel["month_index"].max() == HOLDOUT[1], "expected 18 months of data"
+    train_panel = months(panel, TRAIN)
+    monthly_train = through(monthly, TRAIN[1])
+    holdout_rows = months(panel, HOLDOUT)
+
+    print(
+        f"SYNTHETIC — platform sandbox, {monthly['user_id'].nunique()} households. "
+        f"{tag}: ExtraTrees {EXTRATREES_V1}, raw target\n"
+    )
+
+    # The same configuration on the selection split, for continuity with the
+    # table it was chosen from. Months 13-15 only.
+    score_rows = months(train_panel, SELECT_SCORE)
+    early = fit("extra_trees", EXTRATREES_V1, months(train_panel, SELECT_FIT))
+    validated = evaluate(
+        PanelForecaster(tag, score_rows, predict("extra_trees", early, score_rows)),
+        monthly_train, n_holdout=3,
+    )
+    print(
+        f"validation, months 13-15: MAE {validated.mae_total:.1f}  "
+        f"catMAE {validated.mae_category:.1f}  "
+        f"signed error {signed_error(validated):+.1f}"
+    )
+
+    model = fit("extra_trees", EXTRATREES_V1, train_panel)
+    bundle = {"features": FEATURES, "learners": {"extra_trees": model}}
+    MODELS_DIR.mkdir(exist_ok=True)
+    artefact = MODELS_DIR / f"{tag}.joblib"
+    joblib.dump(bundle, artefact)
+    digest = hashlib.sha256(artefact.read_bytes()).hexdigest()
+
+    # ── the one look at months 16-18, for this model only ──
+    blend = evaluate(BudgetBlendForecaster(budgets), monthly, n_holdout=3)
+    result = evaluate(
+        PanelForecaster(tag, holdout_rows, predict_ensemble(bundle, holdout_rows)),
+        monthly, n_holdout=3,
+    )
+    p = paired(result, blend)
+
+    print(f"\nHoldout, months {HOLDOUT[0]}-{HOLDOUT[1]}\n{HEADER}\n{'─' * len(HEADER)}")
+    print(blend.line())
+    print(result.line())
+    print(
+        f"\nmean signed error   blend {signed_error(blend):+.1f}   "
+        f"{tag} {signed_error(result):+.1f}"
+    )
+    print(
+        f"\npaired against the blend over {p.n} household-months "
+        f"(negative = better)\n"
+        f"  MAE     {p.d_mae:+8.1f}  t {p.t_mae:6.2f}\n"
+        f"  MAPE    {p.d_mape:+8.2f} pp  t {p.t_mape:6.2f}\n"
+        f"  catMAE  {p.d_cat:+8.1f}  t {p.t_cat:6.2f}\n"
+        f"  wins    {p.wins}/{p.n}"
+    )
+
+    by_month = []
+    print(f"\nby month        {'MAE Δ':>8s} {'catMAE Δ':>9s} {'signed err':>11s} {'blend':>8s}")
+    for (y, m), rows in result.rows.groupby(["year", "month"]):
+        base = blend.rows[(blend.rows["year"] == y) & (blend.rows["month"] == m)]
+        row = {
+            "month": f"{y}-{m:02d}",
+            "mae_delta": round(rows["abs_error"].mean() - base["abs_error"].mean(), 1),
+            "cat_mae_delta": round(rows["cat_mae"].mean() - base["cat_mae"].mean(), 1),
+            "signed_error": round(
+                (rows["predicted_total"] - rows["actual_total"]).mean(), 1),
+            "blend_signed_error": round(
+                (base["predicted_total"] - base["actual_total"]).mean(), 1),
+        }
+        by_month.append(row)
+        print(f"  {row['month']}      {row['mae_delta']:8.1f} {row['cat_mae_delta']:9.1f} "
+              f"{row['signed_error']:+11.1f} {row['blend_signed_error']:+8.1f}")
+
+    manifest = {
+        "artefact": artefact.name,
+        "sha256": digest,
+        "size_bytes": artefact.stat().st_size,
+        "model": "ExtraTreesRegressor, raw target, predictions clipped at 0",
+        "params": EXTRATREES_V1,
+        "trained_through": month_label(monthly, TRAIN[1]),
+        "training_target_months": f"{month_label(monthly, TRAIN[0])} to "
+        f"{month_label(monthly, TRAIN[1])}",
+        "training_rows": int(len(train_panel)),
+        "features": FEATURES,
+        "random_state": RANDOM_STATE,
+        "versions": {
+            pkg: version(pkg) for pkg in ("scikit-learn", "pandas", "numpy", "joblib")
+        },
+        "git_head": sha,
+        "git_tracked_changes_uncommitted": dirty,
+        "data": "SYNTHETIC platform sandbox, data/spending_records.csv",
+        "validation": {
+            "months": f"{month_label(monthly, SELECT_SCORE[0])} to "
+            f"{month_label(monthly, SELECT_SCORE[1])}",
+            "mae": round(validated.mae_total, 1),
+            "cat_mae": round(validated.mae_category, 1),
+            "signed_error": round(signed_error(validated), 1),
+        },
+        "holdout": {
+            "months": f"{month_label(monthly, HOLDOUT[0])} to "
+            f"{month_label(monthly, HOLDOUT[1])}",
+            "n": p.n,
+            "mae": round(result.mae_total, 1),
+            "mape_pct": round(result.mape_total * 100, 2),
+            "median_ape_pct": round(result.median_ape_total * 100, 2),
+            "cat_mae": round(result.mae_category, 1),
+            "signed_error": round(signed_error(result), 1),
+            "blend_mae": round(blend.mae_total, 1),
+            "blend_cat_mae": round(blend.mae_category, 1),
+            "paired_vs_blend": {
+                "mae_delta": round(p.d_mae, 1), "mae_t": round(p.t_mae, 2),
+                "mape_delta_pp": round(p.d_mape, 2), "mape_t": round(p.t_mape, 2),
+                "cat_mae_delta": round(p.d_cat, 1), "cat_mae_t": round(p.t_cat, 2),
+                "wins": p.wins,
+            },
+            "by_month": by_month,
+        },
+    }
+    (MODELS_DIR / f"{tag}.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(
+        f"\nwrote models/{artefact.name} ({artefact.stat().st_size / 1e6:.1f} MB, "
+        f"sha256 {digest[:12]}...) and models/{tag}.manifest.json, git_head {sha[:7]}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model", choices=("ensemble", "extratrees"), default="ensemble")
     parser.add_argument("--capped", action="store_true")
     parser.add_argument("--targets", choices=sorted(TARGETS), default="current")
     parser.add_argument("--validate-only", action="store_true")
@@ -318,6 +471,11 @@ def main() -> None:
         raise SystemExit(
             "The full sandbox extract is not in data/. Run `python -m scripts.fetch_data`."
         )
+    if args.model == "extratrees":
+        if args.capped or args.targets != "current" or args.validate_only:
+            raise SystemExit("--model extratrees takes no other options; it is fixed.")
+        ship_extratrees()
+        return
 
     tag = "ensemble-v1" if args.targets == "current" else "ensemble-v2"
     tag += "-capped" if args.capped else ""
