@@ -23,6 +23,7 @@ import app.features as features
 from app.data import _adapt
 from app.forecaster import (
     SHIPPED_ARTEFACT,
+    BudgetBlendForecaster,
     ExtraTreesForecaster,
     Forecast,
     ModelArtefactError,
@@ -32,6 +33,7 @@ from app.synthetic import monthly_totals
 
 PUBLIC = Path(__file__).resolve().parent.parent / "data" / "public"
 MANIFEST = SHIPPED_ARTEFACT.with_name(SHIPPED_ARTEFACT.stem + ".manifest.json")
+CALIBRATION = SHIPPED_ARTEFACT.with_name(SHIPPED_ARTEFACT.stem + ".calibration.json")
 
 
 @pytest.fixture(scope="module")
@@ -93,12 +95,48 @@ def test_rejects_an_artefact_whose_sha256_does_not_match_the_manifest(tmp_path):
     artefact = tmp_path / SHIPPED_ARTEFACT.name
     shutil.copy(SHIPPED_ARTEFACT, artefact)
     shutil.copy(MANIFEST, tmp_path / MANIFEST.name)
+    shutil.copy(CALIBRATION, tmp_path / CALIBRATION.name)
     ExtraTreesForecaster(artefact)  # the untouched copy loads
 
     with artefact.open("ab") as f:
         f.write(b"\0")
     with pytest.raises(ModelArtefactError, match="SHA-256"):
         ExtraTreesForecaster(artefact)
+
+
+# ── the interval and the confidence ──
+
+
+def test_the_interval_brackets_the_point_and_is_the_calibrated_width(forecaster, public):
+    calibration = json.loads(CALIBRATION.read_text())
+    assert calibration["scale"] == "relative"
+    for user in ("h001", "h017", "h060"):
+        fc = forecaster.forecast(public[0], user, 2026, 10)
+        assert 0 <= fc.low <= fc.total <= fc.high
+        assert fc.low == pytest.approx(fc.total * (1 + calibration["lower"]), abs=0.01)
+        assert fc.high == pytest.approx(fc.total * (1 + calibration["upper"]), abs=0.01)
+
+
+def test_refuses_a_calibration_made_for_another_artefact(tmp_path):
+    other = json.loads(CALIBRATION.read_text())
+    other["artefact_sha256"] = "0" * 64
+    calibration = tmp_path / "other.calibration.json"
+    calibration.write_text(json.dumps(other))
+    with pytest.raises(ModelArtefactError, match="different artefact"):
+        ExtraTreesForecaster(calibration=calibration)
+    with pytest.raises(ModelArtefactError, match="missing"):
+        ExtraTreesForecaster(calibration=tmp_path / "absent.calibration.json")
+
+
+def test_confidence_is_the_households_steadiness_as_for_the_blend(forecaster, public):
+    """Same formula, same history, same number: it describes the household."""
+    monthly, budgets = public
+    before = monthly[monthly["year"] * 12 + monthly["month"] < 2026 * 12 + 10]
+    blend = BudgetBlendForecaster(budgets)
+    for user in ("h001", "h017", "h060"):
+        assert forecaster.forecast(before, user, 2026, 10).confidence == (
+            blend.forecast(before, user, 2026, 10).confidence
+        )
 
 
 # ── statelessness ──

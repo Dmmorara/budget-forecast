@@ -1,0 +1,34 @@
+{
+  "artefact": "extratrees-v2.joblib",
+  "artefact_sha256": "b8b88235349065928dd4df871ce8a515df452953f45e3b34e2c8e0063bf0941c",
+  "method": "split conformal on the signed residual of the monthly total (actual - predicted); lower bound clipped at 0",
+  "scale": "relative",
+  "nominal": 0.8,
+  "lower": -0.15718805303716588,
+  "upper": 0.15484948535319612,
+  "both_scales": {
+    "absolute_kes": {
+      "lower": -12133.78790842594,
+      "upper": 10754.899174072169
+    },
+    "relative": {
+      "lower": -0.15718805303716588,
+      "upper": 0.15484948535319612
+    },
+    "spearman_pred_vs_abs_residual": 0.44
+  },
+  "calibration": {
+    "model": "EXTRATREES_V1 {'n_estimators': 40, 'max_depth': 12, 'min_samples_leaf': 20, 'max_features': 1.0}, random_state 37, refitted on target months 4-12 (2025-07 to 2026-03) for the 440 training households; the shipped model trained on 13-15, so its own residuals there would be in-sample",
+    "residual_months": "2026-04 to 2026-06",
+    "n": 1320,
+    "deployed_households_used": 0
+  },
+  "fallback_if_undercovered": {
+    "rule": "if verified coverage is below 80% for either household group, recompute from the same 13-15 residuals at a 90% nominal level and verify once more; fixed before the holdout was read",
+    "nominal": 0.9,
+    "lower": -0.18663825289113875,
+    "upper": 0.22348711064517943
+  },
+  "git_head": "707fa231029667ff83bc7ea34171a3072fe92edd",
+  "verification": null
+}
