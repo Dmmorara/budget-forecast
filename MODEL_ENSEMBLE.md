@@ -298,6 +298,126 @@ runs. Two limits on these numbers:
 
 ---
 
+## The interval: split conformal
+
+```bash
+python3 -m scripts.calibrate_interval analyse            # months 13-15 only
+python3 -m scripts.calibrate_interval write --scale relative
+python3 -m scripts.calibrate_interval verify             # months 16-18; refuses a third run
+```
+
+The model gives a point forecast and nothing else, and the contract needs a
+range. The blend's range comes from percentiles of the household's own past
+totals, which measures how much the household varies, not how wrong a
+forecast is. So the model's interval is calibrated on its residuals instead:
+offsets taken from how wrong it was on months it had not been fitted on,
+added to its point forecast. `app.forecaster.conformal_bounds` applies them,
+in the calibration script and in `ExtraTreesForecaster` alike, so the
+interval calibrated is the interval served.
+
+**Calibration data.** The shipped model was trained on target months 4–15,
+so its own residuals on 13–15 would be in-sample, and its guard refuses
+those months anyway. The calibration model is the same configuration and
+random_state, refitted on target months 4–12 for the same 440 households,
+and scored on 13–15: 1,320 out-of-sample residuals. No deployed household is
+involved. With three fewer months of training it should, if anything, err
+wide.
+
+**Relative, not KES, because the errors grow with the forecast.** On
+months 13–15:
+
+| predicted-total quintile | mean predicted | mean \|residual\| | \|residual\| / predicted | coverage, KES offsets | coverage, relative offsets |
+|---|---|---|---|---|---|
+| Q1 | 36,041 | 3,528 | 0.099 | 97.7% | 80.7% |
+| Q2 | 48,674 | 5,386 | 0.111 | 94.3% | 77.3% |
+| Q3 | 66,943 | 8,069 | 0.122 | 88.3% | 83.7% |
+| Q4 | 94,238 | 9,641 | 0.102 | 68.9% | 79.2% |
+| Q5 | 129,495 | 13,443 | 0.104 | 51.5% | 79.9% |
+
+The absolute error roughly quadruples across the quintiles while the error
+as a share of the forecast stays at 10–12% (Spearman 0.44 between predicted
+total and |residual|). KES offsets (−12,133.8 / +10,754.9) reach 80% on
+average by over-covering small households and covering only half of the
+largest. Relative offsets (−15.7% / +15.5%) cover 77–84% in every quintile.
+Both sets are recorded in `models/extratrees-v2.calibration.json`. The
+offsets are conformal quantiles with the finite-sample correction, and the
+lower bound is clipped at zero.
+
+**Verified once on the holdout, failed, corrected once.** The fallback
+was fixed in the calibration file before months 16–18 were read: if
+coverage fell below 80% for either household group, recompute from the same
+13–15 residuals at a 90% nominal level and verify once more.
+
+| verification | interval | 440 trained | 60 deployed |
+|---|---|---|---|
+| 1 | relative, nominal 80% (−15.7% / +15.5%) | 80.5% | **78.9%** (142/180), fails |
+| 2 | fallback, nominal 90% (−18.7% / +22.3%) | 90.8% | 89.4% |
+
+The 60-household figure rests on 180 household-months, so its standard
+error is about ±3 points. The 1.1-point shortfall is well within that, and
+the 80% interval may well have been honest. But the rule was fixed in
+advance, so the fallback is what ships. **The served interval is the
+nominal-90% one, achieving about 90%.** It is a little wider than an 80%
+interval needs to be. `ExtraTreesForecaster` reads the recorded verification
+and serves the fallback because the first attempt failed and the second
+passed. Had both failed, it would refuse to serve an interval at all. The
+script refuses a third verification.
+
+**Tree spread is not an interval.** The 10th–90th percentile of the 40
+trees' individual totals covers 27.3% of outcomes on months 13–15, and 31.2%
+and 26.1% on the holdout, at about a tenth of the point's width. The trees
+disagree with each other far less than the forecast is wrong, because each
+tree is fitted to the same data and their spread measures model variance:
+how much the forest would change with a different random draw. It does not
+measure the month-to-month noise in a household's spending, which is most
+of the error. An interval built from it would claim 80% and deliver under a
+third.
+
+**Confidence is unchanged and describes the household.** It is the
+baselines' formula, [1/(1+CV)] × [n/(n+3)], with CV taken over the
+household's own monthly totals before the target month. A test asserts it
+equals the blend's confidence for the same history. It measures how steady
+the household has been, not how certain the model is; the interval carries
+the model's uncertainty. The code says so where it is computed.
+
+### The volatile flag no longer works with this interval
+
+The flag fires when the range spans more than 60% of the point forecast.
+**Under the conformal interval it never fires: 0 of 1,320 and 0 of 180 on
+the holdout.** That is not a threshold that needs moving. With relative
+offsets every interval is the same share of its forecast, 0.410 (0.312 at
+80%); the zero clip never binds at −18.7%. So any threshold on that share fires
+for every household or for none. The flag cannot tell a volatile household
+from a steady one, and "MAE is larger where it fires" cannot be tested
+because it does not fire. Tree spread never fires either.
+
+The blend's flag, which is built from the household's own history, still
+works where there is enough data. On the 440 it fires on 44 household-months
+with MAE 11,903.5 against 8,813.1 where it does not. On the 60 it fires 5
+times, with MAE 8,419.3 against 9,144.6, the wrong way round, but 5 cases
+decide nothing. If the model's response is to carry a meaningful volatile
+flag, it needs a household-specific input such as that history-based width,
+chosen on months 13–15. That is a decision for the wiring step, and nothing
+here was tuned toward it.
+
+### For Chapter 5
+
+Holdout, months 16–18. Synthetic. Width is the mean of (high − low) / point.
+"MAE when the flag fires" compares household-months where the volatile flag
+fires against those where it does not.
+
+| interval | coverage, 440 trained (n 1,320) | coverage, 60 deployed (n 180) | mean width / point (440 / 60) | flag fires (440 / 60) | MAE when the flag fires vs not, 440 | MAE when the flag fires vs not, 60 |
+|---|---|---|---|---|---|---|
+| blend (history percentiles + slack) | 91.8% | 89.4% | 0.433 / 0.424 | 44 / 5 | 11,903.5 vs 8,813.1 | 8,419.3 vs 9,144.6 |
+| conformal, nominal 80% (failed verification) | 80.5% | 78.9% | 0.312 / 0.312 | 0 / 0 | — | — |
+| **conformal, nominal 90% (served)** | **90.8%** | **89.4%** | **0.410 / 0.410** | 0 / 0 | — | — |
+| tree spread, p10–p90 of 40 trees | 31.2% | 26.1% | 0.101 / 0.103 | 0 / 0 | — | — |
+
+The 60-household coverage figures rest on 180 observations, so each has a
+standard error of about ±2–3 points.
+
+---
+
 ## What this does not show
 
 - **The holdout has been read many times.** SANDBOX_RESULTS.md scored months
@@ -306,9 +426,8 @@ runs. Two limits on these numbers:
   configuration that was later chosen. Nothing was tuned on them, but they
   are no longer an independent test. The validation split is the stronger
   evidence.
-- **No interval and no confidence.** The model gives a point forecast per
-  category. The service's contract returns an interval and a confidence, and
-  the blend's 91.5% coverage has no counterpart here.
+- **The volatile flag is inert with the model's interval** (above). Wiring
+  needs a household-specific basis for it.
 - **Synthetic data, one extract.** 500 generated households over 18 months.
 - **The deployed households are out-of-sample, but they are only 60.** On
   them the model is not shown to beat the blend on the total (t −0.16). The
@@ -356,7 +475,7 @@ stage model files by explicit path, never `git add models/`.
 
 ## What shipping would take
 
-Steps 1–3 are done; the service does not use the model yet.
+Steps 1–4 are done; the service does not use the model yet.
 
 1. **Done.** `scikit-learn==1.5.2` and `joblib==1.6.0`, the versions the
    manifest records, are in `requirements.txt`. The service image goes from
@@ -377,6 +496,8 @@ Steps 1–3 are done; the service does not use the model yet.
    `scripts/build_panel.py` builds the training panel from them and the
    forecaster builds each request's features from them. A refit through the
    moved code reproduces the artefact byte for byte.
-4. Wire it into `app/service.py`, and decide the interval and the confidence
-   first: the model gives a point forecast per category and nothing else,
-   and `ExtraTreesForecaster` leaves `low`, `high` and `confidence` unset.
+4. **Done.** Interval and confidence: split-conformal interval at nominal
+   90% after the 80% one failed on the 60 deployed households, and the
+   household-steadiness confidence (see "The interval").
+5. Wire it into `app/service.py`, and give the volatile flag a basis that
+   can fire. Under this interval the 60% width rule never does.
