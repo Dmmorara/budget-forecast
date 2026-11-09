@@ -36,6 +36,15 @@ data/*.json
 # ...except the committed slice, which is what the deployed service serves.
 !data/public/*.csv
 
+# The shipped model, admitted by exact name the same way, and nothing else from
+# models/: a stray artefact must not ride into the image. If these three are
+# missing the service still starts, on the blend, and /health says so; the
+# image check in README.md ("Is the model in the image?") catches that.
+models/*
+!models/extratrees-v2.joblib
+!models/extratrees-v2.manifest.json
+!models/extratrees-v2.calibration.json
+
 # Tests and development tooling: the image runs the service, it does not test it.
 # CI runs the suite against the source, which is the right place for it.
 tests/

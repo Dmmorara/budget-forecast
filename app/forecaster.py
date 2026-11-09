@@ -625,7 +625,7 @@ class ExtraTreesForecaster:
                 f"{manifest.name}: no usable trained_through ({exc!r})."
             ) from exc
         self.trained_through = f"{year:04d}-{month:02d}"
-        self._last_trained_key = year * 12 + month
+        self.last_trained_key = year * 12 + month
 
         # Imported here so that importing this module does not pull in
         # scikit-learn for the forecasters that do not need it.
@@ -666,7 +666,7 @@ class ExtraTreesForecaster:
     def forecast(
         self, history: pd.DataFrame, user_id: str, year: int, month: int
     ) -> Forecast:
-        if year * 12 + month <= self._last_trained_key:
+        if year * 12 + month <= self.last_trained_key:
             raise TrainingPeriodError(
                 f"{self.name} was trained on target months up to "
                 f"{self.trained_through}; it will not forecast {year:04d}-{month:02d}, "
@@ -676,7 +676,9 @@ class ExtraTreesForecaster:
         rows = household_features(
             history, self._budget.get(str(user_id), {}), str(user_id), year, month
         )
-        if rows.empty:
+        # Too little history: decline before the model is touched. The service
+        # sends these households to the blend anyway (app/service.py).
+        if rows.empty or int(rows["n_history"].iloc[0]) < MIN_MONTHS_FOR_FORECAST:
             return _insufficient(self.name)
 
         n_months = int(rows["n_history"].iloc[0])
@@ -689,11 +691,6 @@ class ExtraTreesForecaster:
             if v > 0.005
         }
         total = round(float(sum(breakdown.values())), 2)
-        if n_months < MIN_MONTHS_FOR_FORECAST:
-            return Forecast(
-                total=total, breakdown=breakdown, confidence=0.0,
-                risk_flag="insufficient_history", method=self.name,
-            )
 
         low, high = conformal_bounds(total, self._offsets, self._scale)
         low, high = float(low), float(high)

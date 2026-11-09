@@ -627,7 +627,7 @@ stage model files by explicit path, never `git add models/`.
 
 ## What shipping would take
 
-Steps 1–5 are done; the service does not use the model yet.
+Steps 1–6 are done. Merging to `main` deploys the model.
 
 1. **Done.** `scikit-learn==1.5.2` and `joblib==1.6.0`, the versions the
    manifest records, are in `requirements.txt`. The service image goes from
@@ -654,4 +654,11 @@ Steps 1–5 are done; the service does not use the model yet.
 5. **Done.** FR-07 amended: `volatile` describes the household (CV of prior
    monthly totals above 0.4587), identically for the blend and the model
    (see "The volatile flag, amended").
-6. Wire the model into `app/service.py`.
+6. **Done.** `app/service.py` serves the model when its files validate at
+   startup, and the blend otherwise, and also per request: for too little
+   history, for months inside the training period, and when the model
+   raises. `GET /health` names the active forecaster. Measured locally in
+   the built image (650 MB), it is 0.92–0.98 s from `docker run` to the first
+   successful forecast, against 0.63–0.85 s for the blend alone, and warm p95
+   is 21 ms. Render's own wake time is not included and has not been
+   measured with the model.

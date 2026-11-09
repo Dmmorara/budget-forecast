@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.schemas import BudgetResponse, Request, Response
-from app.service import budget_for, handle
+from app.service import FORECASTER, budget_for, handle
 
 app = FastAPI(title="U-CS 37 — budget-forecast", version="0.1.0")
 
@@ -60,8 +60,19 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    """Hosting platforms call this to check the service is alive."""
-    return {"status": "ok"}
+    """
+    Hosting platforms call this to check the service is alive.
+
+    `forecaster` (additive) names what POST /forecast is answering with: the
+    fitted model, or the blend when the model did not load, in which case
+    `fallbackReason` says why. A deployment whose model file went missing
+    still answers every request, so this is where that shows.
+    """
+    return {
+        "status": "ok",
+        "forecaster": FORECASTER.name,
+        "fallbackReason": FORECASTER.fallback_reason,
+    }
 
 
 @app.post("/forecast", response_model=Response)

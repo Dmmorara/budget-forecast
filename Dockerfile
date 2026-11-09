@@ -30,8 +30,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Dependencies first, so a code change does not re-run pip on every build.
+#
+# The test suites bundled inside scikit-learn, scipy, pandas and numpy are
+# removed in the same layer, so the bytes never reach the image: nothing
+# imports them at runtime. __pycache__ is kept on purpose. PYTHONDONTWRITEBYTECODE
+# means removed bytecode is recompiled on every start, and measured in this
+# image that doubled the time to import the service and load the model
+# (0.84 s to 1.71 s), a cost paid on every cold start for about 100 MB.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && find /usr/local/lib/python3.11/site-packages/sklearn \
+            /usr/local/lib/python3.11/site-packages/scipy \
+            /usr/local/lib/python3.11/site-packages/pandas \
+            /usr/local/lib/python3.11/site-packages/numpy \
+            -depth -type d -name tests -exec rm -rf {} +
 
 COPY . .
 

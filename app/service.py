@@ -31,20 +31,107 @@ contract. There is no fitted state to go stale between requests.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
+import pandas as pd
+
 from app.data import SANDBOX_IS_SYNTHETIC, load_budgets, load_monthly
-from app.forecaster import BudgetBlendForecaster, Forecast
+from app.forecaster import (
+    MIN_MONTHS_FOR_FORECAST,
+    SHIPPED_ARTEFACT,
+    BudgetBlendForecaster,
+    ExtraTreesForecaster,
+    Forecast,
+)
 from app.schemas import BudgetResponse, Request, Response
 
-# The single swap point. SANDBOX_RESULTS.md has the evidence.
-#
-# 80% the household's own spending history, 20% the budget it declared.
-#
-# The sandbox has no temporal structure to model — lag-1 autocorrelation of
-# monthly spend is about -0.07 — so the gains here come from using a BETTER
-# ESTIMATOR and a SECOND SOURCE, not from forecasting. `allocated_kes` is an
-# independent estimate of the same quantity the history mean estimates, and
-# combining two noisy estimates beats either.
-FORECASTER = BudgetBlendForecaster(load_budgets(), weight=0.8)
+log = logging.getLogger("budget_forecast")
+if not log.handlers:
+    # Uvicorn configures only its own loggers, so without this an INFO line
+    # from here would be dropped. Formatted like uvicorn's own lines.
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+
+
+class ServedForecaster:
+    """
+    What POST /forecast calls: the fitted model when it loaded, the blend
+    otherwise, and the blend for every request the model must not answer.
+
+    The service must never return a 500 because of a model file, so the blend
+    answers whenever:
+
+      - the model did not load at startup (missing artefact, corrupt manifest,
+        SHA-256 mismatch, wrong feature list, missing calibration);
+      - the household has fewer than MIN_MONTHS_FOR_FORECAST months of
+        history, so the insufficient-history answer is exactly the blend's, as
+        it was before the model, and the model is never touched;
+      - the target month is inside the model's training period, which its
+        leakage guard refuses (MODEL_ENSEMBLE.md);
+      - the model raises for any other reason on a request.
+
+    Both are stateless functions of the history they are handed, so choosing
+    between them per request keeps no state either. `method` in the response
+    names whichever answered.
+    """
+
+    def __init__(self, model: ExtraTreesForecaster | None,
+                 blend: BudgetBlendForecaster, reason: str | None = None):
+        self.model = model
+        self.blend = blend
+        self.fallback_reason = reason
+        self.name = model.name if model is not None else blend.name
+
+    def _model_may_answer(self, history: pd.DataFrame, user_id: str,
+                          year: int, month: int) -> bool:
+        if self.model is None:
+            return False
+        if year * 12 + month <= self.model.last_trained_key:
+            return False
+        own = history[history["user_id"] == user_id]
+        months = (own["year"] * 12 + own["month"]).nunique()
+        return months >= MIN_MONTHS_FOR_FORECAST
+
+    def forecast(self, history: pd.DataFrame, user_id: str, year: int, month: int) -> Forecast:
+        if self._model_may_answer(history, user_id, year, month):
+            try:
+                return self.model.forecast(history, user_id, year, month)
+            except Exception:  # never a 500 because of the model
+                log.exception("model forecast failed for %s %04d-%02d; the blend "
+                              "answered", user_id, year, month)
+        return self.blend.forecast(history, user_id, year, month)
+
+
+def select_forecaster(
+    artefact: Path = SHIPPED_ARTEFACT, budgets: pd.DataFrame | None = None
+) -> ServedForecaster:
+    """
+    Load the model once, falling back to the blend if anything about the
+    model files is wrong. Logs which forecaster is active, once, at INFO.
+    """
+    budgets = load_budgets() if budgets is None else budgets
+    # 80% the household's own spending history, 20% the budget it declared:
+    # SANDBOX_RESULTS.md has the evidence. It answers alone when the model
+    # cannot, and always for households with too little history.
+    blend = BudgetBlendForecaster(budgets, weight=0.8)
+    try:
+        model = ExtraTreesForecaster(artefact, budgets=budgets)
+    except Exception as exc:  # any model-file failure means the blend
+        reason = f"{type(exc).__name__}: {exc}"
+        log.warning("model not loaded (%s); serving the fallback %s", reason, blend.name)
+        served = ServedForecaster(None, blend, reason)
+    else:
+        served = ServedForecaster(model, blend)
+    log.info("forecaster active: %s", served.name)
+    return served
+
+
+# The single swap point. Chosen once, at startup.
+FORECASTER = select_forecaster()
 
 
 def _history_before(monthly, year: int, month: int):
@@ -62,7 +149,8 @@ def _history_before(monthly, year: int, month: int):
     return monthly[keys < target]
 
 
-def handle(body: Request) -> Response:
+def handle(body: Request, forecaster: ServedForecaster | None = None) -> Response:
+    forecaster = forecaster or FORECASTER
     monthly, is_synthetic = load_monthly()
 
     known_users = set(monthly["user_id"].unique())
@@ -76,11 +164,13 @@ def handle(body: Request) -> Response:
             confidence=0.0,
             riskFlag="insufficient_history",
             isSynthetic=is_synthetic,
-            method=f"{FORECASTER.name} (no history for user)",
+            # The blend's name, as before the model: this answer involves no
+            # forecaster, and it must not change with which one is active.
+            method=f"{forecaster.blend.name} (no history for user)",
         )
 
     history = _history_before(monthly, body.year, body.month)
-    fc: Forecast = FORECASTER.forecast(history, body.userId, body.year, body.month)
+    fc: Forecast = forecaster.forecast(history, body.userId, body.year, body.month)
 
     return Response(
         estimatedTotal=round(fc.total, 2),

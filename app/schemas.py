@@ -36,7 +36,8 @@ from pydantic import BaseModel, Field
 # this value needs to know what it can receive.
 RiskFlag = Literal[
     "insufficient_history",  # too few months of data to forecast responsibly
-    "volatile",              # spend varies too much for the interval to be tight
+    "volatile",              # the household's monthly spending is unsteady (FR-07 as
+                             # amended); says nothing about the forecast's accuracy
     "overspend_risk",        # forecast materially exceeds the household's budget
 ]
 
