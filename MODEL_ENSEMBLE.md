@@ -324,8 +324,14 @@ excludes the contents of `models/` and un-ignores `*.joblib` and
 `*.manifest.json`. CI's secrets check exempts this one artefact by exact path
 and still fails on any other `.joblib`. The manifest records:
 
-- `git_head` 9f6e020, the commit that produced the artefact, with no
-  uncommitted tracked changes;
+- `git_head` 5f886bc, the commit that wrote this manifest, with no
+  uncommitted tracked changes. The artefact was first written at 9f6e020;
+  the regeneration at 5f886bc only added the selection record, and its bytes
+  are identical;
+- the selection evidence: the configuration was fixed by extratrees-v1's
+  validation run (dc48878, committed in 87b9a0a) and not re-selected, with
+  that run's months 13–15 figures (MAE 7848.5, category MAE 1779.4, signed
+  error +346.7);
 - 440 training households, 57,000 training rows, and
   `deployed_households_in_training: 0`;
 - the last training month (2026-06) and the ordered list of 31 features;
