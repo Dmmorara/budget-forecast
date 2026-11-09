@@ -70,11 +70,39 @@ MIN_MONTHS_FOR_FORECAST = 3
 #
 # Second, and more basic: recovering the generator's own profile labels is not
 # what the flag is for. A consumer reading `riskFlag` wants to know whether to
-# trust the number in front of it. So the flag is defined on the width of the
+# trust the number in front of it. So the flag was defined on the width of the
 # interval relative to the forecast, which is a statement about this specific
 # prediction, needs no population labels, and is testable against whether
 # error is in fact larger on the months it fires.
+#
+# The baselines below still use that width rule, VOLATILE_REL_WIDTH. The
+# served forecasters do not: see VOLATILE_CV.
 VOLATILE_REL_WIDTH = 0.60
+
+# FR-07, AMENDED: THE FLAG DESCRIBES THE HOUSEHOLD, NOT THE FORECAST
+# ------------------------------------------------------------------
+# BudgetBlendForecaster and ExtraTreesForecaster flag `volatile` when the
+# household's monthly spending has varied by more than this, as the
+# coefficient of variation of its monthly totals before the target month
+# (`household_cv`). It marks households whose spending is unsteady. It does
+# NOT claim the forecast for them is less accurate: for the fitted model it
+# is not (MODEL_ENSEMBLE.md, "The volatile flag").
+#
+# The width rule had to go for the served forecasters because a calibrated
+# interval for the model is a constant share of its point, so the rule could
+# never fire. What it had detected was a weakness of the blend: the blend's
+# errors are larger for the most volatile households, and the model's are not.
+#
+# The value is set by a firing rate, not a round number: 4.8%, the rate the
+# blend's width rule had on months 13-15 for the 440 training households, so
+# consumers see the flag about as often as before. 0.4587 is the CV that gives
+# that rate there (scripts/volatile_threshold.py choose).
+#
+# This revisits a CV threshold, which the first paragraph above rejected for
+# recovering profile labels. The difference is the claim: that version was
+# read as "do not trust this number", and this one says only "this household's
+# spending varies", which is what a CV measures.
+VOLATILE_CV = 0.4587
 
 
 @dataclass
@@ -136,6 +164,33 @@ def _pivot(df: pd.DataFrame) -> pd.DataFrame:
         index="mkey", columns="category", values="amount", aggfunc="sum"
     ).fillna(0.0)
     return out.sort_index()
+
+
+def household_cv(
+    history: pd.DataFrame, user_id: str, year: int, month: int
+) -> tuple[float, int]:
+    """
+    `(CV, n)` of the household's monthly totals over the months before the
+    target that have any record: std (ddof=1) / mean, and how many months.
+    CV is 0 below two months or with no spend. Months at or after the target
+    are dropped here, whatever the caller hands in.
+    """
+    own = _user_history(history, str(user_id))
+    own = own[own["year"] * 12 + own["month"] < year * 12 + month]
+    if own.empty:
+        return 0.0, 0
+    totals = _pivot(own).sum(axis=1)
+    mean = float(totals.mean())
+    cv = float(totals.std(ddof=1) / mean) if len(totals) > 1 and mean > 0 else 0.0
+    return cv, int(len(totals))
+
+
+def household_is_volatile(
+    history: pd.DataFrame, user_id: str, year: int, month: int
+) -> bool:
+    """FR-07 as amended: CV of the prior monthly totals above VOLATILE_CV."""
+    cv, _n = household_cv(history, user_id, year, month)
+    return cv > VOLATILE_CV
 
 
 def _insufficient(method: str) -> Forecast:
@@ -434,13 +489,15 @@ class BudgetBlendForecaster:
         slack = (1.0 - _evidence(n_months)) * max(total, 1.0) * 0.5
         low = max(0.0, min(low, total) - slack)
         high = max(high, total) + slack
-        rel_width = (high - low) / total if total > 0 else float("inf")
 
         return Forecast(
             total=total, breakdown=breakdown,
             confidence=round(_confidence_from_cv(cv) * _evidence(n_months), 4),
             low=round(low, 2), high=round(high, 2),
-            risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
+            risk_flag=(
+                "volatile" if household_is_volatile(history, user_id, year, month)
+                else None
+            ),
             method=self.name,
         )
 
@@ -648,18 +705,12 @@ class ExtraTreesForecaster:
         # are. A steady household with a long history scores high. It says
         # nothing about how certain the model is of this forecast; that is
         # what the interval is for, and the two must not be read as one.
-        mkey = year * 12 + month
-        own = _user_history(history, str(user_id))
-        own = own[own["year"] * 12 + own["month"] < mkey]
-        monthly = _pivot(own).sum(axis=1)
-        mean_total = float(monthly.mean())
-        cv = float(monthly.std(ddof=1) / mean_total) if mean_total > 0 else 0.0
+        cv, _n = household_cv(history, str(user_id), year, month)
         confidence = round(_confidence_from_cv(cv) * _evidence(n_months), 4)
 
-        rel_width = (high - low) / total if total > 0 else float("inf")
         return Forecast(
             total=total, breakdown=breakdown, confidence=confidence,
             low=round(low, 2), high=round(high, 2),
-            risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
+            risk_flag="volatile" if cv > VOLATILE_CV else None,
             method=self.name,
         )
