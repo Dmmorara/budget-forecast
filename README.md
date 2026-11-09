@@ -252,3 +252,45 @@ docker run --rm -e PORT=8000 -p 8000:8000 budget-forecast
 [`.dockerignore`](.dockerignore) keeps `.env`, `venv/` and the test suite out of the
 image. Without it `COPY . .` would bake any `.env` into a layer, where `docker history`
 exposes it even if a later layer deletes the file.
+
+### Which forecaster is answering
+
+`POST /forecast` answers with the fitted model, `extratrees-v2`, when its files
+load at startup: the artefact's SHA-256 must match its manifest, and the feature
+list and calibration must validate. Otherwise it answers with the blend, and the
+service never returns a 500 because of a model file. The blend also answers
+whenever the model must not, request by request:
+
+- households with fewer than three months of history, exactly as before the model;
+- months inside the model's training period, up to 2026-06;
+- any request on which the model raises.
+
+`method` in each response names whichever forecaster answered. `GET /health`
+names the active one, additively:
+
+```json
+{"status": "ok", "forecaster": "model:extratrees-v2", "fallbackReason": null}
+```
+
+A deployment whose model file went missing still looks healthy, because every
+request is answered. When that happens, `forecaster` is `blend:history0.8_budget0.2`
+and `fallbackReason` says why. The startup log says the same once.
+
+### Is the model in the image?
+
+`.dockerignore` admits the three shipped model files by exact name and nothing
+else from `models/`. To check a built image rather than assume it:
+
+```bash
+docker run --rm --entrypoint python budget-forecast -c "
+import hashlib, json, pathlib
+m = pathlib.Path('/app/models')
+man = json.loads((m / 'extratrees-v2.manifest.json').read_text())
+assert hashlib.sha256((m / 'extratrees-v2.joblib').read_bytes()).hexdigest() == man['sha256']
+from app.service import FORECASTER
+assert FORECASTER.model is not None, FORECASTER.fallback_reason
+print('model present and loaded:', FORECASTER.name)"
+```
+
+On the deployed service, `curl https://budget-forecast-e8ad.onrender.com/health`
+answers the same question.
