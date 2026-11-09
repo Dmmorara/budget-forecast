@@ -7,6 +7,7 @@ __pycache__/
 models/*
 !models/*.joblib
 !models/*.manifest.json
+!models/*.calibration.json
 data/*.csv
 # The minimised, pseudonymised slice IS committed: the deployed service builds
 # from this repository, so anything it serves has to be here. See

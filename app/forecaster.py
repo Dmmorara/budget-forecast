@@ -451,6 +451,28 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 SHIPPED_ARTEFACT = MODELS_DIR / "extratrees-v2.joblib"
 
 
+def conformal_bounds(point, offsets: tuple[float, float], scale: str):
+    """
+    The interval around `point` from calibrated residual offsets
+    `(lower, upper)`, where a residual is actual - predicted on the monthly
+    total. `absolute` adds them in KES; `relative` scales them by the point.
+    The lower bound is clipped at zero. Works on a number or an array.
+
+    scripts/calibrate_interval.py computes the offsets and calls this same
+    function, so the interval that is calibrated is the interval served.
+    """
+    point = np.asarray(point, dtype=float)
+    lower, upper = offsets
+    if scale == "absolute":
+        low, high = point + lower, point + upper
+    elif scale == "relative":
+        low, high = point * (1 + lower), point * (1 + upper)
+    else:
+        raise ValueError(f"unknown scale {scale!r}")
+    low = np.maximum(low, 0.0)
+    return low, np.maximum(high, low)
+
+
 class ModelArtefactError(RuntimeError):
     """The artefact or its manifest cannot be trusted. Raised at construction."""
 
