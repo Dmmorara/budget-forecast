@@ -536,11 +536,14 @@ def ship_extratrees_disjoint() -> None:
     assert not set(train_panel["user_id"]) & served
     holdout_rows = months(panel, HOLDOUT)
 
-    v1_path = MODELS_DIR / "extratrees-v1.joblib"
-    v1_manifest = json.loads((MODELS_DIR / "extratrees-v1.manifest.json").read_text())
-    if hashlib.sha256(v1_path.read_bytes()).hexdigest() != v1_manifest["sha256"]:
-        raise SystemExit("extratrees-v1.joblib does not match its manifest.")
-    v1 = joblib.load(v1_path)
+    # extratrees-v1, the all-500 fit, refitted here rather than read from
+    # models/: it is deterministic, and v2 replaces it in the repository.
+    v1 = {
+        "features": FEATURES,
+        "learners": {
+            "extra_trees": fit("extra_trees", EXTRATREES_V1, months(panel, TRAIN))
+        },
+    }
 
     print(
         f"SYNTHETIC — platform sandbox. {tag}: ExtraTrees {EXTRATREES_V1}, raw target\n"
