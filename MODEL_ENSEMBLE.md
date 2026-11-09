@@ -395,10 +395,93 @@ The blend's flag, which is built from the household's own history, still
 works where there is enough data. On the 440 it fires on 44 household-months
 with MAE 11,903.5 against 8,813.1 where it does not. On the 60 it fires 5
 times, with MAE 8,419.3 against 9,144.6, the wrong way round, but 5 cases
-decide nothing. If the model's response is to carry a meaningful volatile
-flag, it needs a household-specific input such as that history-based width,
-chosen on months 13–15. That is a decision for the wiring step, and nothing
-here was tuned toward it.
+decide nothing. The obvious repair was to make the model's interval
+household-specific. It was tried, on months 13–15 only, and it does not
+work. The next section explains why.
+
+### Normalised conformal does not rescue it
+
+```bash
+python3 -m scripts.calibrate_interval analyse-normalised    # months 13-15 only
+```
+
+Normalised, or locally weighted, conformal prediction divides each
+residual by a household-specific scale term u before taking the quantile,
+then multiplies back. That keeps the marginal coverage guarantee while
+letting the width vary (Papadopoulos, Vovk & Gammerman, 2011; Lei, G'Sell,
+Rinaldo, Tibshirani & Wasserman, 2018). Here the score is
+|residual| / (point × u) and the interval is point × (1 ± q·u), with u
+computed from the household's monthly totals before the target month only.
+Four candidates for u were fixed before anything was measured: 1 (the
+current interval), the CV of those totals, √(1 + 1/n) for history length,
+and the two combined. Each was judged on months 13–15 at the served 90%
+nominal level, on two criteria together: coverage holds, and span/point
+varies enough for the 60% threshold to separate households.
+
+| u | coverage | coverage by CV quintile (lowest → highest) | span/point: mean, sd | p10 / p50 / p90 | flag fires | MAE when the flag fires vs not | MAPE when the flag fires vs not |
+|---|---|---|---|---|---|---|---|
+| 1 | 90.0% | 88.3 / 89.4 / 88.6 / 93.2 / 90.5% | 0.400, 0.000 | 0.400 / 0.400 / 0.400 | 0 | — | — |
+| √(1 + 1/n) | 90.1% | 88.6 / 89.4 / 88.6 / 93.2 / 90.5% | 0.399, 0.001 | 0.398 / 0.399 / 0.400 | 0 | — | — |
+| CV | 90.1% | **75.0** / 86.0 / 92.8 / 97.7 / 98.9% | 0.556, 0.383 | 0.305 / 0.437 / 0.837 | 296 (22.4%) | 8,282.5 vs 7,935.6 | 10.20% vs 10.34% |
+| CV × √(1 + 1/n) | 90.1% | **75.0** / 86.0 / 92.8 / 97.7 / 98.9% | 0.556, 0.383 | 0.305 / 0.436 / 0.838 | 295 (22.3%) | 8,293.1 vs 7,932.9 | 10.21% vs 10.33% |
+
+- **History length cannot vary the width.** Every calibration household has
+  12, 13 or 14 months, and which one depends only on the target month.
+- **CV varies the width, but not with the error.** The spread is real (sd
+  0.383), and the flag fires on 22% of household-months. But the model's
+  relative error is unrelated to a household's CV: Spearman −0.035 between
+  CV and |residual| / point. So the width moves without any matching change
+  in error:
+  - the steadiest fifth of households are covered 75%, below the 80% in
+    NFR-01, and the most volatile fifth 98.9%;
+  - where the flag fires, KES error is 4% higher (Welch t = +0.50), only
+    because those households forecast larger totals (78,178 against 74,182);
+  - relative error is slightly lower there (t = −0.25).
+  The flag would mark households whose past spending varied, not forecasts
+  that are less reliable.
+
+**So no scale definition makes the 60% threshold discriminate while
+holding coverage.** Following the rule set before this was tried, the
+holdout was not opened for it and nothing was adopted. The served interval
+is unchanged.
+
+**The finding: FR-03's flag is incompatible with a calibrated interval for
+this model.** The rule is "the range spans more than 60% of the point
+forecast". That is a fixed fraction of the point, and a calibrated interval
+is as wide as the model's errors. This model's errors scale with the point
+and with nothing else measured here. So the honest interval is a constant
+share of the point, and no threshold on that share can separate households.
+Making the width vary on purpose, as the CV scaling does, buys a flag that
+fires by breaking coverage for steady households, and the flagged forecasts
+are not in fact worse. The blend's flag discriminated (MAE 11,903.5 against
+8,813.1 on the 440) because the blend's errors are larger for volatile
+households. The model has removed that relationship, and with it the thing
+the flag was detecting.
+
+**Proposed change to FR-03, for decision.** Stop defining the flag as
+interval width over the point. Either:
+
+1. **define it on the household, and say so.** For example: "the
+   household's monthly spending has varied by more than X% (CV of prior
+   totals)". This is true and checkable, with X chosen on months 13–15 to a
+   stated firing rate. It makes no claim about forecast error, because none
+   holds. The response contract's `riskFlag` value is unchanged; what
+   changes is FR-03's wording and what Chapter 5 claims it means; or
+2. **drop the volatile value for the model's forecasts.** Keep
+   `insufficient_history`, and let the interval alone carry uncertainty,
+   since the interval is calibrated and the flag would not be.
+
+Either needs FR-03 amended before the model is wired in. Shipping the
+current rule would mean a flag that never fires, and tuning a threshold
+until it does would claim something that is not true.
+
+References:
+Papadopoulos, H., Vovk, V. and Gammerman, A. (2011). Regression conformal
+prediction with nearest neighbours. *Journal of Artificial Intelligence
+Research*, 40, 815–840.
+Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J. and Wasserman, L. (2018).
+Distribution-free predictive inference for regression. *Journal of the
+American Statistical Association*, 113(523), 1094–1111.
 
 ### For Chapter 5
 
@@ -499,5 +582,7 @@ Steps 1–4 are done; the service does not use the model yet.
 4. **Done.** Interval and confidence: split-conformal interval at nominal
    90% after the 80% one failed on the 60 deployed households, and the
    household-steadiness confidence (see "The interval").
-5. Wire it into `app/service.py`, and give the volatile flag a basis that
-   can fire. Under this interval the 60% width rule never does.
+5. Amend FR-03 (see "Normalised conformal does not rescue it"), then wire
+   the model into `app/service.py`. Under the calibrated interval the 60%
+   width rule never fires, and no household-specific width fixes that
+   honestly.
