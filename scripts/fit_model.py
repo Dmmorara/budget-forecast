@@ -5,6 +5,16 @@ the shipped blend. Reproduces every number in MODEL_ENSEMBLE.md.
     pip install -r requirements-train.txt
     python3 -m scripts.fit_model            # unconstrained -> models/ensemble-v1.*
     python3 -m scripts.fit_model --capped   # tree size capped -> models/ensemble-v1-capped.*
+    python3 -m scripts.fit_model --targets fixed --validate-only [--capped]
+                                            # months 13-15 only; nothing written
+
+--targets chooses what Ridge and HistGB estimate. `current` (the default, and
+what MODEL_ENSEMBLE.md reports) fits Ridge on log1p(spend) and HistGB with
+absolute error: a geometric-mean-like and a median estimate, both below the
+mean on right-skewed spend, so the ensemble forecasts low. `fixed` fits Ridge
+on the raw target and HistGB with squared error, which both estimate the mean.
+--validate-only stops after the selection split: no final fit, no artefact,
+and months 16-18 are never scored.
 
 Needs the full sandbox extract in data/ (500 households, 18 months). Synthetic.
 
@@ -86,8 +96,13 @@ CAPS = {
     "hist_gb": {"max_depth": 6},
 }
 
+TARGETS = {
+    "current": {"ridge_log": True, "hist_gb_loss": "absolute_error"},
+    "fixed": {"ridge_log": False, "hist_gb_loss": "squared_error"},
+}
 
-def make(learner: str, params: dict):
+
+def make(learner: str, params: dict, targets: str = "current"):
     if learner == "ridge":
         return make_pipeline(
             StandardScaler(), Ridge(random_state=RANDOM_STATE, **params)
@@ -98,7 +113,7 @@ def make(learner: str, params: dict):
         # early_stopping would hold out a RANDOM tenth of the rows, mixing
         # months; max_iter is chosen on the time split instead.
         return HistGradientBoostingRegressor(
-            loss="absolute_error",
+            loss=TARGETS[targets]["hist_gb_loss"],
             early_stopping=False,
             random_state=RANDOM_STATE,
             **params,
@@ -106,24 +121,39 @@ def make(learner: str, params: dict):
     raise ValueError(learner)
 
 
-def fit(learner: str, params: dict, rows: pd.DataFrame):
+def _log_target(learner: str, targets: str) -> bool:
+    return learner == "ridge" and TARGETS[targets]["ridge_log"]
+
+
+def fit(learner: str, params: dict, rows: pd.DataFrame, targets: str = "current"):
     x = rows[FEATURES].to_numpy()
     y = rows["target"].to_numpy()
-    # Ridge is fitted on log1p(target): spend is right-skewed and a linear
-    # model on the raw scale is dominated by a few rent payments.
-    return make(learner, params).fit(x, np.log1p(y) if learner == "ridge" else y)
+    # With targets="current", Ridge is fitted on log1p(target) so a few rent
+    # payments do not dominate it, at the price of estimating below the mean.
+    log = _log_target(learner, targets)
+    return make(learner, params, targets).fit(x, np.log1p(y) if log else y)
 
 
-def predict(learner: str, model, rows: pd.DataFrame) -> np.ndarray:
+def predict(
+    learner: str, model, rows: pd.DataFrame, targets: str = "current"
+) -> np.ndarray:
     raw = model.predict(rows[FEATURES].to_numpy())
-    return np.clip(np.expm1(raw) if learner == "ridge" else raw, 0.0, None)
+    return np.clip(np.expm1(raw) if _log_target(learner, targets) else raw, 0.0, None)
 
 
 def predict_ensemble(bundle: dict, rows: pd.DataFrame) -> np.ndarray:
     """Equal-weight mean of the three learners, on the original scale."""
+    targets = bundle.get("targets", "current")
     return np.mean(
-        [predict(name, bundle["learners"][name], rows) for name in LEARNERS], axis=0
+        [predict(name, bundle["learners"][name], rows, targets) for name in LEARNERS],
+        axis=0,
     )
+
+
+def signed_error(result: Result) -> float:
+    """Mean of predicted minus actual total. Negative = forecasts low."""
+    scored = result.rows[~result.rows["declined"]]
+    return float((scored["predicted_total"] - scored["actual_total"]).mean())
 
 
 class PanelForecaster:
@@ -171,17 +201,21 @@ def through(monthly: pd.DataFrame, last_index: int) -> pd.DataFrame:
 
 
 def select_config(
-    train_panel: pd.DataFrame, monthly_train: pd.DataFrame, caps: dict, log: list
+    train_panel: pd.DataFrame,
+    monthly_train: pd.DataFrame,
+    caps: dict,
+    log: list,
+    targets: str = "current",
 ):
     """
     Choose each learner's configuration by total MAE on months 13-15, fitted on
     4-12. Never sees months 16-18: both frames stop at month 15. `caps`
     override the grid's values, for --capped.
 
-    Returns the chosen configurations, the ensemble of them and the shipped
-    blend, both scored on the same validation months, so the ensemble can be
-    compared with its parts and with the blend without looking at the
-    holdout.
+    Returns the chosen configurations, each chosen learner's validation
+    result, and the ensemble of them and the shipped blend scored on the same
+    months, so the ensemble can be compared with its parts and with the blend
+    without looking at the holdout.
     """
     assert train_panel["month_index"].max() <= TRAIN[1]
     assert monthly_train["year"].mul(12).add(monthly_train["month"]).nunique() <= TRAIN[1]
@@ -190,20 +224,24 @@ def select_config(
     score_rows = months(train_panel, SELECT_SCORE)
     chosen: dict[str, dict] = {}
     validation: dict[str, np.ndarray] = {}
+    alone: dict[str, Result] = {}
     for learner, candidates in GRID.items():
         best = None
         for params in candidates:
             params = {**params, **caps.get(learner, {})}
-            model = fit(learner, params, fit_rows)
+            model = fit(learner, params, fit_rows, targets)
+            predicted = predict(learner, model, score_rows, targets)
             result = evaluate(
-                PanelForecaster(learner, score_rows, predict(learner, model, score_rows)),
+                PanelForecaster(learner, score_rows, predicted),
                 monthly_train, n_holdout=3,
             )
-            log.append((learner, params, result.mae_total, result.mae_category))
+            log.append((learner, params, result.mae_total, result.mae_category,
+                        signed_error(result)))
             if best is None or result.mae_total < best[0]:
-                best = (result.mae_total, params, predict(learner, model, score_rows))
+                best = (result.mae_total, params, predicted, result)
         chosen[learner] = best[1]
         validation[learner] = best[2]
+        alone[learner] = best[3]
 
     ensemble = evaluate(
         PanelForecaster(
@@ -212,7 +250,7 @@ def select_config(
         monthly_train, n_holdout=3,
     )
     blend = evaluate(BudgetBlendForecaster(load_budgets()), monthly_train, n_holdout=3)
-    return chosen, ensemble, blend
+    return chosen, alone, ensemble, blend
 
 
 @dataclass
@@ -272,6 +310,8 @@ def month_label(monthly: pd.DataFrame, index: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--capped", action="store_true")
+    parser.add_argument("--targets", choices=sorted(TARGETS), default="current")
+    parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
 
     if provenance() != "platform-sandbox":
@@ -279,7 +319,8 @@ def main() -> None:
             "The full sandbox extract is not in data/. Run `python -m scripts.fetch_data`."
         )
 
-    tag = "ensemble-v1-capped" if args.capped else "ensemble-v1"
+    tag = "ensemble-v1" if args.targets == "current" else "ensemble-v2"
+    tag += "-capped" if args.capped else ""
     log: list = []
 
     monthly, _ = load_monthly()
@@ -294,35 +335,58 @@ def main() -> None:
 
     print(
         f"SYNTHETIC — platform sandbox, {monthly['user_id'].nunique()} households. "
-        f"{tag}\n"
+        f"{tag}, targets={args.targets} {TARGETS[args.targets]}\n"
         f"select: fit {SELECT_FIT}, score {SELECT_SCORE}   final fit: {TRAIN}   "
         f"holdout: {HOLDOUT} ({month_label(monthly, HOLDOUT[0])} to "
         f"{month_label(monthly, HOLDOUT[1])})\n"
     )
 
-    chosen, validated, validated_blend = select_config(
-        train_panel, monthly_train, CAPS if args.capped else {}, log
+    chosen, alone, validated, validated_blend = select_config(
+        train_panel, monthly_train, CAPS if args.capped else {}, log, args.targets
     )
-    print("Configuration, chosen on months 13-15 (total MAE; catMAE alongside)")
-    for learner, params, mae, cat in log:
+    print(
+        "Configuration, chosen on months 13-15 by total MAE "
+        "(MAE, catMAE, mean signed error on the total)"
+    )
+    for learner, params, mae, cat, bias in log:
         mark = "  <-" if params == chosen[learner] else ""
-        print(f"  {learner:12s} {str(params):70s} {mae:8.1f} {cat:8.1f}{mark}")
+        print(f"  {learner:12s} {str(params):70s} {mae:8.1f} {cat:8.1f} {bias:9.1f}{mark}")
     print(
         f"  {'blend':12s} {'the shipped forecaster, for reference':70s} "
-        f"{validated_blend.mae_total:8.1f} {validated_blend.mae_category:8.1f}"
+        f"{validated_blend.mae_total:8.1f} {validated_blend.mae_category:8.1f} "
+        f"{signed_error(validated_blend):9.1f}"
     )
     print(
         f"  {'ensemble':12s} {'equal-weight mean of the three marked':70s} "
-        f"{validated.mae_total:8.1f} {validated.mae_category:8.1f}"
+        f"{validated.mae_total:8.1f} {validated.mae_category:8.1f} "
+        f"{signed_error(validated):9.1f}"
     )
+
+    print(f"\nValidation summary, months 13-15 ({tag})")
+    print(f"  {'':24s} {'MAE':>8s} {'catMAE':>8s} {'signed err':>11s}")
+    rows = [("blend (shipped)", validated_blend),
+            *[(f"{n} alone", alone[n]) for n in LEARNERS],
+            ("ensemble", validated)]
+    for label, r in rows:
+        print(f"  {label:24s} {r.mae_total:8.1f} {r.mae_category:8.1f} "
+              f"{signed_error(r):11.1f}")
+
+    if args.validate_only:
+        print("\n--validate-only: stopped before the final fit. Months 16-18 not scored.")
+        return
 
     bundle = {
         "features": FEATURES,
-        "ridge_target": "log1p",
+        "ridge_target": "log1p" if TARGETS[args.targets]["ridge_log"] else "raw",
         "learners": {
-            name: fit(name, chosen[name], train_panel) for name in LEARNERS
+            name: fit(name, chosen[name], train_panel, args.targets)
+            for name in LEARNERS
         },
     }
+    # Only recorded when not the default, so the v1 artefacts stay
+    # byte-identical to the ones MODEL_ENSEMBLE.md reports.
+    if args.targets != "current":
+        bundle["targets"] = args.targets
 
     # Impurity importances from the training fit: where the trees split, not
     # a causal ranking, and nothing here reads the holdout.
@@ -343,7 +407,8 @@ def main() -> None:
     results = [
         evaluate(
             PanelForecaster(name, holdout_rows,
-                            predict(name, bundle["learners"][name], holdout_rows)),
+                            predict(name, bundle["learners"][name], holdout_rows,
+                                    args.targets)),
             monthly, n_holdout=3,
         )
         for name in LEARNERS
@@ -400,7 +465,12 @@ def main() -> None:
         "features": FEATURES,
         "learners": {name: chosen[name] for name in LEARNERS},
         "ensemble": "equal-weight mean of the three, original scale, clipped at 0",
-        "ridge_target": "log1p (predictions expm1)",
+        "targets": args.targets,
+        "ridge_target": (
+            "log1p (predictions expm1)"
+            if TARGETS[args.targets]["ridge_log"] else "raw"
+        ),
+        "hist_gb_loss": TARGETS[args.targets]["hist_gb_loss"],
         "random_state": RANDOM_STATE,
         "capped": args.capped,
         "versions": {

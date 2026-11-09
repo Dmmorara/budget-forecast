@@ -244,8 +244,12 @@ scripts are committed gives the same artefact and a clean manifest.
 None of this is done. `app/` was deliberately left alone.
 
 1. Move `scikit-learn==1.5.2` into `requirements.txt`. That undoes most of
-   the image saving from #38 (772 MB → 492 MB) and brings back Render compiling
-   it from source.
+   the image saving from #38 (772 MB → 492 MB), but it should not slow the
+   build: PyPI has a 1.5.2 wheel for CPython 3.11 on manylinux x86-64, which is
+   what the service's `python:3.11-slim` image runs. The six-minute compile
+   seen on Render was most likely the static site's builder installing
+   `requirements.txt` on its default Python 3.14, for which 1.5.2 has no wheel.
+   That is an inference; no Render build log confirms it.
 2. Get the artefact to the service. `models/` is gitignored and Render builds
    from the repository, so either commit a 6.4–33.9 MB binary or fetch it at
    start-up and check it against the manifest's SHA-256.
