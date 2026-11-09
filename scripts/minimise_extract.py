@@ -50,12 +50,28 @@ DATA_DIR = ROOT / "data"
 PUBLIC_DIR = DATA_DIR / "public"
 
 DEFAULT_HOUSEHOLDS = 60
+DEFAULT_SEED = 37
+
+
+def slice_alias(
+    households, n: int = DEFAULT_HOUSEHOLDS, seed: int = DEFAULT_SEED
+) -> dict[str, str]:
+    """
+    `{platform id: local id}` for the households in the slice.
+
+    A stable, sorted sample, so repeated runs produce the same slice and the
+    demo's household ids stay valid between deployments. scripts/fit_model.py
+    calls this too, to keep the deployed households out of training.
+    """
+    ordered = sorted(str(h) for h in set(households))
+    sample = pd.Series(ordered).sample(n=min(n, len(ordered)), random_state=seed)
+    return {real: f"h{i + 1:03d}" for i, real in enumerate(sorted(sample.tolist()))}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--households", type=int, default=DEFAULT_HOUSEHOLDS)
-    parser.add_argument("--seed", type=int, default=37)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = parser.parse_args()
 
     source = DATA_DIR / "spending_records.csv"
@@ -69,14 +85,9 @@ def main() -> int:
     records = pd.read_csv(source)
     user_col = "user_profile_id" if "user_profile_id" in records.columns else "user_id"
 
-    # A stable, sorted sample so repeated runs produce the same slice and the
-    # demo's household ids stay valid between deployments.
     households = sorted(records[user_col].astype(str).unique())
-    rng = pd.Series(households).sample(
-        n=min(args.households, len(households)), random_state=args.seed
-    )
-    keep = sorted(rng.tolist())
-    alias = {real: f"h{i + 1:03d}" for i, real in enumerate(keep)}
+    alias = slice_alias(households, args.households, args.seed)
+    keep = sorted(alias)
 
     slim = records[records[user_col].astype(str).isin(alias)].copy()
     slim["user_id"] = slim[user_col].astype(str).map(alias)
