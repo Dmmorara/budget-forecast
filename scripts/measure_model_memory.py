@@ -59,7 +59,7 @@ out = {"service_rss": rss_mb(), "service_peak": peak_mb()}
 
 if len(sys.argv) > 1:
     import joblib
-    from scripts.build_panel import features_for
+    from app.features import features_for
     from scripts.fit_model import predict_ensemble
     bundle = joblib.load(sys.argv[1])
     rows = features_for(monthly, load_budgets(), user, 2026, 10)

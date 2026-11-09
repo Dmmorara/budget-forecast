@@ -356,19 +356,27 @@ stage model files by explicit path, never `git add models/`.
 
 ## What shipping would take
 
-None of this is done. `app/` is unchanged.
+Steps 1–3 are done; the service does not use the model yet.
 
-1. Move `scikit-learn==1.5.2` into `requirements.txt`. That undoes most of
-   the image saving from #38 (772 MB → 492 MB), but it should not slow the
-   build: PyPI has a 1.5.2 wheel for CPython 3.11 on manylinux x86-64, which is
-   what the service's `python:3.11-slim` image runs. The six-minute compile
-   seen on Render was most likely the static site's builder installing
-   `requirements.txt` on its default Python 3.14, for which 1.5.2 has no wheel.
-   That is an inference; no Render build log confirms it.
-2. Load `models/extratrees-v2.joblib` in the service. It is tracked in the repository Render
-   builds from, so it reaches the image through `COPY . .`. Check it against
-   the manifest's SHA-256 at start-up and refuse a mismatch.
-3. Serve features with `scripts.build_panel.features_for`, which is what the
-   memory measurement exercised. It needs to move into `app/` first.
-4. Decide the interval and the confidence before `POST /forecast` returns
-   this model's numbers.
+1. **Done.** `scikit-learn==1.5.2` and `joblib==1.6.0`, the versions the
+   manifest records, are in `requirements.txt`. The service image goes from
+   492 MB to 803 MB. The build should still be quick: PyPI has a 1.5.2 wheel
+   for CPython 3.11 on manylinux x86-64, which is what `python:3.11-slim` runs.
+   The six-minute compile seen on Render was most likely the static site's
+   builder installing `requirements.txt` on its default Python 3.14, for
+   which 1.5.2 has no wheel. That is an inference; no Render build log
+   confirms it.
+2. **Done.** `app.forecaster.ExtraTreesForecaster` loads
+   `models/extratrees-v2.joblib` once and refuses it unless its SHA-256
+   matches the manifest and the manifest's 31 features are
+   `app.features.FEATURES` in order. It refuses any target month at or before
+   `trained_through` (2026-06). It keeps no per-household state between
+   calls. Scored through `evaluate`, it reproduces the manifest's holdout
+   figures exactly for both household groups.
+3. **Done.** The features are defined once, in `app/features.py`.
+   `scripts/build_panel.py` builds the training panel from them and the
+   forecaster builds each request's features from them. A refit through the
+   moved code reproduces the artefact byte for byte.
+4. Wire it into `app/service.py`, and decide the interval and the confidence
+   first: the model gives a point forecast per category and nothing else,
+   and `ExtraTreesForecaster` leaves `low`, `high` and `confidence` unset.

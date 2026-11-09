@@ -99,7 +99,9 @@ and every response carries `isSynthetic: true` until it is.
 app/
   schemas.py     the contract as validated types — the frozen shape
   service.py     POST /forecast; FORECASTER is the single swap point
-  forecaster.py  the Forecaster interface and the two baselines
+  forecaster.py  the Forecaster interface, the two baselines, and
+                 ExtraTreesForecaster (the fitted model; not yet served)
+  features.py    the model's features: one definition for fitting and serving
   evaluate.py    rolling-origin time split, metrics, noise floor
   model.py       the shipped forecaster: fixed obligations + habitual rates
   data.py        real sandbox CSVs if present in data/, synthetic otherwise

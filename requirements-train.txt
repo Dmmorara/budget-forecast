@@ -1,16 +1,16 @@
 # Training only: scripts/build_panel.py and scripts/fit_model.py.
 #
-# Kept out of requirements.txt so the service image does not carry
-# scikit-learn (and scipy with it) while nothing it serves needs them: removing
-# them took the image from 772 MB to 492 MB. If the ensemble ever ships, the
-# service must load it, and scikit-learn moves to requirements.txt at the
-# version recorded in models/ensemble-v1.manifest.json.
+# scikit-learn and joblib are in requirements.txt now: the service unpickles
+# models/extratrees-v2.joblib at runtime, so they are runtime dependencies, at
+# the versions its manifest records. Fitting needs nothing beyond them today.
+# Anything only fitting needs goes here, not in requirements.txt, so it stays
+# out of the service image.
 #
-# That move does not mean a slow build. PyPI has a scikit-learn 1.5.2 wheel
-# for CPython 3.11 on manylinux x86-64, which is what the service's
-# python:3.11-slim image runs, so pip installs it prebuilt. The six-minute
-# compile seen on Render was most likely the static site's builder, which
-# installed requirements.txt on its default Python 3.14, for which 1.5.2 has
-# no wheel. That is an inference: no Render build log confirms it.
+# Moving scikit-learn into requirements.txt should not mean a slow build. PyPI
+# has a scikit-learn 1.5.2 wheel for CPython 3.11 on manylinux x86-64, which is
+# what the service's python:3.11-slim image runs, so pip installs it prebuilt.
+# The six-minute compile seen on Render was most likely the static site's
+# builder, which installed requirements.txt on its default Python 3.14, for
+# which 1.5.2 has no wheel. That is an inference: no Render build log
+# confirms it.
 -r requirements.txt
-scikit-learn==1.5.2

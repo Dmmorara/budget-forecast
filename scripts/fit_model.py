@@ -67,7 +67,8 @@ from app.forecaster import (
     BudgetBlendForecaster,
     Forecast,
 )
-from scripts.build_panel import FEATURES, build, deployed_households, training_panel
+from app.features import FEATURES
+from scripts.build_panel import build, deployed_households, training_panel
 
 RANDOM_STATE = 37
 TRAIN = (4, 15)
