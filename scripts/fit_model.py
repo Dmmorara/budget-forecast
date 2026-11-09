@@ -8,7 +8,9 @@ the shipped blend. Reproduces every number in MODEL_ENSEMBLE.md.
     python3 -m scripts.fit_model --targets fixed --validate-only [--capped]
                                             # months 13-15 only; nothing written
     python3 -m scripts.fit_model --model extratrees
-                                            # what ships -> models/extratrees-v1.*
+                                            # all 500 households -> models/extratrees-v1.*
+    python3 -m scripts.fit_model --model extratrees --disjoint
+                                            # 440, deployed slice held out -> extratrees-v2.*
 
 --targets chooses what Ridge and HistGB estimate. `current` (the default, and
 what MODEL_ENSEMBLE.md reports) fits Ridge on log1p(spend) and HistGB with
@@ -58,7 +60,7 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from app.data import load_budgets, load_monthly, provenance
+from app.data import DATA_DIR, PUBLIC_DIR, load_budgets, load_monthly, provenance
 from app.evaluate import HEADER, Result, _month_keys, evaluate
 from app.forecaster import (
     MIN_MONTHS_FOR_FORECAST,
@@ -66,6 +68,7 @@ from app.forecaster import (
     Forecast,
 )
 from scripts.build_panel import FEATURES, build
+from scripts.minimise_extract import slice_alias
 
 RANDOM_STATE = 37
 TRAIN = (4, 15)
@@ -459,12 +462,200 @@ def ship_extratrees() -> None:
     )
 
 
+def deployed_households() -> dict[str, str]:
+    """
+    `{platform id: local id}` for the 60 households the deployment serves,
+    from scripts.minimise_extract's own selection, then checked record for
+    record against the committed data/public/ slice so a change to either side
+    cannot silently pick different households.
+    """
+    cols = ["user_id", "transaction_date", "category", "amount_kes"]
+    raw = pd.read_csv(
+        DATA_DIR / "spending_records.csv",
+        usecols=["user_profile_id", "transaction_date", "category", "amount_kes"],
+    )
+    alias = slice_alias(raw["user_profile_id"].astype(str).unique())
+    mine = (
+        raw[raw["user_profile_id"].astype(str).isin(alias)]
+        .assign(user_id=lambda d: d["user_profile_id"].astype(str).map(alias))[cols]
+        .sort_values(cols).reset_index(drop=True)
+    )
+    public = (
+        pd.read_csv(PUBLIC_DIR / "spending_records.csv")[cols]
+        .sort_values(cols).reset_index(drop=True)
+    )
+    if not mine.equals(public):
+        raise SystemExit("slice_alias does not reproduce data/public/; refusing to fit.")
+    return alias
+
+
+def restrict(result: Result, users: set[str], name: str) -> Result:
+    """`result` scored over `users` only, with evaluate's own definitions."""
+    rows = result.rows[result.rows["user_id"].astype(str).isin(users)]
+    scored = rows[~rows["declined"]]
+    return Result(
+        name=name,
+        n_forecasts=int(len(scored)),
+        n_declined=int(rows["declined"].sum()),
+        mae_total=float(scored["abs_error"].mean()),
+        mape_total=float(scored["ape"].mean(skipna=True)),
+        median_ape_total=float(scored["ape"].median(skipna=True)),
+        mae_category=float(scored["cat_mae"].mean()),
+        coverage=None,
+        mean_confidence=None,
+        rows=rows,
+    )
+
+
+def ship_extratrees_disjoint() -> None:
+    """
+    EXTRATREES_V1's configuration, refitted on targets 4-15 for the 440
+    households NOT in the deployed slice, so no household the service serves
+    was in training. Scored on 16-18 for the 440 (out-of-month) and for the 60
+    (out-of-month and out-of-household), each paired against the blend, and
+    on the 440 against extratrees-v1 to show what dropping 60 households
+    costs. Nothing is re-tuned. Writes models/extratrees-v2.*.
+    """
+    sha, dirty = git_head()
+    if dirty:
+        raise SystemExit("Tracked files have uncommitted changes. Commit first.")
+
+    tag = "extratrees-v2"
+    deployed = deployed_households()
+    monthly, _ = load_monthly()
+    budgets = load_budgets()
+    panel = build(monthly, budgets)
+    assert panel["month_index"].max() == HOLDOUT[1], "expected 18 months of data"
+    everyone = set(monthly["user_id"].astype(str))
+    served = set(deployed)
+    trained = everyone - served
+    assert served <= everyone and len(served) == 60
+
+    train_panel = months(panel, TRAIN)
+    train_panel = train_panel[train_panel["user_id"].isin(trained)]
+    assert not set(train_panel["user_id"]) & served
+    holdout_rows = months(panel, HOLDOUT)
+
+    v1_path = MODELS_DIR / "extratrees-v1.joblib"
+    v1_manifest = json.loads((MODELS_DIR / "extratrees-v1.manifest.json").read_text())
+    if hashlib.sha256(v1_path.read_bytes()).hexdigest() != v1_manifest["sha256"]:
+        raise SystemExit("extratrees-v1.joblib does not match its manifest.")
+    v1 = joblib.load(v1_path)
+
+    print(
+        f"SYNTHETIC — platform sandbox. {tag}: ExtraTrees {EXTRATREES_V1}, raw target\n"
+        f"trained on {len(trained)} households, targets {TRAIN}; the {len(served)} "
+        f"deployed households (data/public/, checked record for record) excluded\n"
+    )
+
+    model = fit("extra_trees", EXTRATREES_V1, train_panel)
+    bundle = {"features": FEATURES, "learners": {"extra_trees": model}}
+    MODELS_DIR.mkdir(exist_ok=True)
+    artefact = MODELS_DIR / f"{tag}.joblib"
+    joblib.dump(bundle, artefact)
+    digest = hashlib.sha256(artefact.read_bytes()).hexdigest()
+
+    # ── months 16-18: v2, and v1 and the blend as the comparisons ──
+    blend = evaluate(BudgetBlendForecaster(budgets), monthly, n_holdout=3)
+    v2_all = evaluate(
+        PanelForecaster(tag, holdout_rows, predict_ensemble(bundle, holdout_rows)),
+        monthly, n_holdout=3,
+    )
+    v1_all = evaluate(
+        PanelForecaster("extratrees-v1", holdout_rows, predict_ensemble(v1, holdout_rows)),
+        monthly, n_holdout=3,
+    )
+
+    summary = {}
+    groups = [
+        ("trained_440", trained, "the 440 training households: out-of-month, in-household"),
+        ("deployed_60", served, "the 60 deployed households: out-of-month AND out-of-household"),
+    ]
+    for key, users, label in groups:
+        b = restrict(blend, users, blend.name)
+        two = restrict(v2_all, users, tag)
+        one = restrict(v1_all, users, "extratrees-v1 (all 500)")
+        print(f"\n── {label} ──\n{HEADER}\n{'─' * len(HEADER)}")
+        for r in (b, two, one):
+            print(r.line())
+        print(
+            f"mean signed error   blend {signed_error(b):+.1f}   {tag} "
+            f"{signed_error(two):+.1f}   extratrees-v1 {signed_error(one):+.1f}"
+        )
+        vs_blend = paired(two, b)
+        vs_v1 = paired(two, one)
+        for title, pr in ((f"{tag} vs blend", vs_blend), (f"{tag} vs extratrees-v1", vs_v1)):
+            print(
+                f"  {title:28s} MAE {pr.d_mae:+8.1f} (t {pr.t_mae:6.2f})  "
+                f"MAPE {pr.d_mape:+6.2f} pp (t {pr.t_mape:6.2f})  "
+                f"catMAE {pr.d_cat:+7.1f} (t {pr.t_cat:6.2f})  wins {pr.wins}/{pr.n}"
+            )
+        summary[key] = {
+            "households": len(users),
+            "n": vs_blend.n,
+            "mae": round(two.mae_total, 1),
+            "mape_pct": round(two.mape_total * 100, 2),
+            "median_ape_pct": round(two.median_ape_total * 100, 2),
+            "cat_mae": round(two.mae_category, 1),
+            "signed_error": round(signed_error(two), 1),
+            "blend": {"mae": round(b.mae_total, 1), "cat_mae": round(b.mae_category, 1),
+                      "signed_error": round(signed_error(b), 1)},
+            "vs_blend": {
+                "mae_delta": round(vs_blend.d_mae, 1), "mae_t": round(vs_blend.t_mae, 2),
+                "mape_delta_pp": round(vs_blend.d_mape, 2), "mape_t": round(vs_blend.t_mape, 2),
+                "cat_mae_delta": round(vs_blend.d_cat, 1), "cat_mae_t": round(vs_blend.t_cat, 2),
+                "wins": vs_blend.wins,
+            },
+            "vs_extratrees_v1": {
+                "mae_delta": round(vs_v1.d_mae, 1), "mae_t": round(vs_v1.t_mae, 2),
+                "cat_mae_delta": round(vs_v1.d_cat, 1), "cat_mae_t": round(vs_v1.t_cat, 2),
+            },
+        }
+
+    manifest = {
+        "artefact": artefact.name,
+        "sha256": digest,
+        "size_bytes": artefact.stat().st_size,
+        "model": "ExtraTreesRegressor, raw target, predictions clipped at 0",
+        "params": EXTRATREES_V1,
+        "trained_through": month_label(monthly, TRAIN[1]),
+        "training_target_months": f"{month_label(monthly, TRAIN[0])} to "
+        f"{month_label(monthly, TRAIN[1])}",
+        "training_households": len(trained),
+        "training_rows": int(len(train_panel)),
+        "excluded_households": (
+            f"the {len(served)} in data/public/, selected by "
+            "scripts.minimise_extract.slice_alias and checked record for record"
+        ),
+        "deployed_households_in_training": 0,
+        "features": FEATURES,
+        "random_state": RANDOM_STATE,
+        "versions": {
+            pkg: version(pkg) for pkg in ("scikit-learn", "pandas", "numpy", "joblib")
+        },
+        "git_head": sha,
+        "git_tracked_changes_uncommitted": dirty,
+        "data": "SYNTHETIC platform sandbox, data/spending_records.csv",
+        "holdout": {
+            "months": f"{month_label(monthly, HOLDOUT[0])} to "
+            f"{month_label(monthly, HOLDOUT[1])}",
+            **summary,
+        },
+    }
+    (MODELS_DIR / f"{tag}.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(
+        f"\nwrote models/{artefact.name} ({artefact.stat().st_size / 1e6:.1f} MB, "
+        f"sha256 {digest[:12]}...) and models/{tag}.manifest.json, git_head {sha[:7]}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", choices=("ensemble", "extratrees"), default="ensemble")
     parser.add_argument("--capped", action="store_true")
     parser.add_argument("--targets", choices=sorted(TARGETS), default="current")
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--disjoint", action="store_true")
     args = parser.parse_args()
 
     if provenance() != "platform-sandbox":
@@ -474,8 +665,10 @@ def main() -> None:
     if args.model == "extratrees":
         if args.capped or args.targets != "current" or args.validate_only:
             raise SystemExit("--model extratrees takes no other options; it is fixed.")
-        ship_extratrees()
+        ship_extratrees_disjoint() if args.disjoint else ship_extratrees()
         return
+    if args.disjoint:
+        raise SystemExit("--disjoint applies to --model extratrees only.")
 
     tag = "ensemble-v1" if args.targets == "current" else "ensemble-v2"
     tag += "-capped" if args.capped else ""
