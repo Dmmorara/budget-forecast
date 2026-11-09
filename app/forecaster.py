@@ -13,6 +13,13 @@ the history and a forecaster physically cannot see the month it is predicting,
 or any month after it. The discipline is enforced by the type signature rather
 than by care.
 
+A fitted model is the one exception to "not fitted once", and
+`ExtraTreesForecaster` keeps the claim in an explicit form. It still takes
+`(history, user_id, year, month)` and keeps no per-household state between
+calls. What it learned from the past is frozen in an artefact whose manifest
+records the last month it was trained on, and it refuses any target month at
+or before that one. It cannot be asked to forecast a month it was fitted to.
+
 THE TWO BASELINES
 -----------------
 `LastMonthForecaster` is the bar the project README actually sets: "beats
@@ -33,11 +40,16 @@ shows up as measured lift rather than being quietly absorbed.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional, Protocol
 
 import numpy as np
 import pandas as pd
+
+from app.features import FEATURES, budget_lookup, household_features
 
 # Below this many months of history we do not pretend to forecast.
 MIN_MONTHS_FOR_FORECAST = 3
@@ -431,3 +443,128 @@ class BudgetBlendForecaster:
             risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
             method=self.name,
         )
+
+
+# ───────────────────────── the fitted model ─────────────────────────
+
+MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+SHIPPED_ARTEFACT = MODELS_DIR / "extratrees-v2.joblib"
+
+
+class ModelArtefactError(RuntimeError):
+    """The artefact or its manifest cannot be trusted. Raised at construction."""
+
+
+class TrainingPeriodError(ValueError):
+    """A target month the model was trained on. Forecasting it would leak."""
+
+
+class ExtraTreesForecaster:
+    """
+    The fitted ExtraTrees model (MODEL_ENSEMBLE.md), behind the same stateless
+    protocol as every other forecaster.
+
+    Construction loads the artefact once and refuses it unless all three hold:
+
+      integrity   its SHA-256 matches the manifest's;
+      features    the manifest's feature list, and the artefact's own, are
+                  exactly `app.features.FEATURES`, in order, so the model is
+                  served the columns it was fitted on;
+      period      the manifest names the last month it was trained on.
+
+    Each `forecast` builds features from the history it is handed, through
+    `app.features.household_features`, the function the training panel was
+    built with. No per-household state is kept between calls. The budgets and
+    the model are fixed at construction and never written afterwards.
+
+    `forecast` raises TrainingPeriodError for any target month at or before
+    `trained_through`, rather than returning a number scored on data it was
+    fitted to.
+
+    The model gives a point forecast per category and nothing else, so `low`,
+    `high` and `confidence` are left unset. What the service reports in their
+    place is decided when this is wired into it.
+    """
+
+    def __init__(
+        self,
+        artefact: Path = SHIPPED_ARTEFACT,
+        manifest: Path | None = None,
+        budgets: pd.DataFrame | None = None,
+    ):
+        artefact = Path(artefact)
+        manifest = (
+            Path(manifest) if manifest is not None
+            else artefact.with_name(artefact.stem + ".manifest.json")
+        )
+        record = json.loads(manifest.read_text())
+
+        digest = hashlib.sha256(artefact.read_bytes()).hexdigest()
+        if digest != record.get("sha256"):
+            raise ModelArtefactError(
+                f"{artefact.name}: SHA-256 {digest[:12]}... does not match the "
+                f"manifest's {str(record.get('sha256'))[:12]}...; refusing to load it."
+            )
+
+        if list(record.get("features", [])) != FEATURES:
+            raise ModelArtefactError(
+                f"{manifest.name}: its feature list ({len(record.get('features', []))} "
+                f"entries) is not app.features.FEATURES ({len(FEATURES)}) in the same "
+                "order. The model would be served columns it was not fitted on."
+            )
+
+        try:
+            year, month = (int(x) for x in record["trained_through"].split("-"))
+        except (KeyError, ValueError) as exc:
+            raise ModelArtefactError(
+                f"{manifest.name}: no usable trained_through ({exc!r})."
+            ) from exc
+        self.trained_through = f"{year:04d}-{month:02d}"
+        self._last_trained_key = year * 12 + month
+
+        # Imported here so that importing this module does not pull in
+        # scikit-learn for the forecasters that do not need it.
+        import joblib
+
+        bundle = joblib.load(artefact)
+        if list(bundle.get("features", [])) != FEATURES:
+            raise ModelArtefactError(
+                f"{artefact.name}: the artefact's own feature list is not "
+                "app.features.FEATURES in the same order."
+            )
+        self._model = bundle["learners"]["extra_trees"]
+        self._budget = budget_lookup(budgets) if budgets is not None else {}
+        self.name = f"model:{artefact.stem}"
+
+    def forecast(
+        self, history: pd.DataFrame, user_id: str, year: int, month: int
+    ) -> Forecast:
+        if year * 12 + month <= self._last_trained_key:
+            raise TrainingPeriodError(
+                f"{self.name} was trained on target months up to "
+                f"{self.trained_through}; it will not forecast {year:04d}-{month:02d}, "
+                "because that month's spending was part of its training data."
+            )
+
+        rows = household_features(
+            history, self._budget.get(str(user_id), {}), str(user_id), year, month
+        )
+        if rows.empty:
+            return _insufficient(self.name)
+
+        n_months = int(rows["n_history"].iloc[0])
+        predicted = np.clip(
+            self._model.predict(rows[FEATURES].to_numpy(dtype=float)), 0.0, None
+        )
+        breakdown = {
+            str(c): round(float(v), 2)
+            for c, v in zip(rows["category"], predicted)
+            if v > 0.005
+        }
+        total = round(float(sum(breakdown.values())), 2)
+        if n_months < MIN_MONTHS_FOR_FORECAST:
+            return Forecast(
+                total=total, breakdown=breakdown, confidence=0.0,
+                risk_flag="insufficient_history", method=self.name,
+            )
+        return Forecast(total=total, breakdown=breakdown, method=self.name)
