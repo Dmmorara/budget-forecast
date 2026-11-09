@@ -117,6 +117,7 @@ scripts/
   fit_model.py          reproduces every number in MODEL_ENSEMBLE.md, and writes
                         the shipped models/extratrees-v2 (--model extratrees --disjoint)
   measure_model_memory.py  resident memory of the service with the model loaded
+  calibrate_interval.py    the model's split-conformal interval, verified once
 tests/
   test_contract.py      the shape other teams rely on
   test_synthetic.py     the generator, and that it stays non-stationary

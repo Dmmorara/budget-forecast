@@ -451,6 +451,41 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 SHIPPED_ARTEFACT = MODELS_DIR / "extratrees-v2.joblib"
 
 
+def conformal_bounds(point, offsets: tuple[float, float], scale: str):
+    """
+    The interval around `point` from calibrated residual offsets
+    `(lower, upper)`, where a residual is actual - predicted on the monthly
+    total. `absolute` adds them in KES; `relative` scales them by the point.
+    The lower bound is clipped at zero. Works on a number or an array.
+
+    scripts/calibrate_interval.py computes the offsets and calls this same
+    function, so the interval that is calibrated is the interval served.
+    """
+    point = np.asarray(point, dtype=float)
+    lower, upper = offsets
+    if scale == "absolute":
+        low, high = point + lower, point + upper
+    elif scale == "relative":
+        low, high = point * (1 + lower), point * (1 + upper)
+    else:
+        raise ValueError(f"unknown scale {scale!r}")
+    low = np.maximum(low, 0.0)
+    return low, np.maximum(high, low)
+
+
+def _fallback_verified(offsets: dict, name: str) -> bool:
+    """True if the recorded verification calls for the fallback offsets."""
+    attempts = (offsets.get("verification") or {}).get("attempts", [])
+    if not attempts or attempts[0]["passed"]:
+        return False
+    if len(attempts) > 1 and attempts[1]["passed"]:
+        return True
+    raise ModelArtefactError(
+        f"{name}: the interval failed its holdout verification and the "
+        "fallback has not passed one; refusing to serve it."
+    )
+
+
 class ModelArtefactError(RuntimeError):
     """The artefact or its manifest cannot be trusted. Raised at construction."""
 
@@ -470,7 +505,9 @@ class ExtraTreesForecaster:
       features    the manifest's feature list, and the artefact's own, are
                   exactly `app.features.FEATURES`, in order, so the model is
                   served the columns it was fitted on;
-      period      the manifest names the last month it was trained on.
+      period      the manifest names the last month it was trained on;
+      calibration the interval's calibration file names this artefact's
+                  SHA-256, so offsets calibrated for another model are refused.
 
     Each `forecast` builds features from the history it is handed, through
     `app.features.household_features`, the function the training panel was
@@ -481,9 +518,18 @@ class ExtraTreesForecaster:
     `trained_through`, rather than returning a number scored on data it was
     fitted to.
 
-    The model gives a point forecast per category and nothing else, so `low`,
-    `high` and `confidence` are left unset. What the service reports in their
-    place is decided when this is wired into it.
+    The interval is split conformal (scripts/calibrate_interval.py): offsets
+    taken from how wrong the same configuration was on months it had not been
+    fitted on, applied to the point forecast by `conformal_bounds`. It is not
+    the spread of the household's past spending, which is what the blend's
+    interval measures, and not the spread of the trees, which measures how
+    much the forest disagrees with itself rather than how wrong it is.
+
+    Which offsets are served follows the calibration file's recorded holdout
+    verification: the calibrated ones if the first verification passed, the
+    wider fallback (fixed before the holdout was read) if the first failed and
+    the second passed, and none at all if both failed. `use_fallback` overrides
+    that, for the verification itself.
     """
 
     def __init__(
@@ -491,6 +537,8 @@ class ExtraTreesForecaster:
         artefact: Path = SHIPPED_ARTEFACT,
         manifest: Path | None = None,
         budgets: pd.DataFrame | None = None,
+        calibration: Path | None = None,
+        use_fallback: bool | None = None,
     ):
         artefact = Path(artefact)
         manifest = (
@@ -533,6 +581,28 @@ class ExtraTreesForecaster:
                 "app.features.FEATURES in the same order."
             )
         self._model = bundle["learners"]["extra_trees"]
+
+        calibration = (
+            Path(calibration) if calibration is not None
+            else artefact.with_name(artefact.stem + ".calibration.json")
+        )
+        if not calibration.exists():
+            raise ModelArtefactError(
+                f"{calibration.name} is missing: the model has no calibrated "
+                "interval. Run scripts/calibrate_interval.py."
+            )
+        offsets = json.loads(calibration.read_text())
+        if offsets.get("artefact_sha256") != digest:
+            raise ModelArtefactError(
+                f"{calibration.name} was calibrated for a different artefact; "
+                "refusing to serve its interval with this one."
+            )
+        if use_fallback is None:
+            use_fallback = _fallback_verified(offsets, calibration.name)
+        chosen = offsets["fallback_if_undercovered"] if use_fallback else offsets
+        self.interval_nominal = float(chosen["nominal"])
+        self._scale = offsets["scale"]
+        self._offsets = (float(chosen["lower"]), float(chosen["upper"]))
         self._budget = budget_lookup(budgets) if budgets is not None else {}
         self.name = f"model:{artefact.stem}"
 
@@ -567,4 +637,29 @@ class ExtraTreesForecaster:
                 total=total, breakdown=breakdown, confidence=0.0,
                 risk_flag="insufficient_history", method=self.name,
             )
-        return Forecast(total=total, breakdown=breakdown, method=self.name)
+
+        low, high = conformal_bounds(total, self._offsets, self._scale)
+        low, high = float(low), float(high)
+
+        # CONFIDENCE DESCRIBES THE HOUSEHOLD, NOT THE MODEL. It is the same
+        # formula as the baselines and the blend: [1 / (1 + CV)] x [n / (n + 3)],
+        # where CV is the coefficient of variation of the household's own
+        # monthly totals before the target month and n is how many months there
+        # are. A steady household with a long history scores high. It says
+        # nothing about how certain the model is of this forecast; that is
+        # what the interval is for, and the two must not be read as one.
+        mkey = year * 12 + month
+        own = _user_history(history, str(user_id))
+        own = own[own["year"] * 12 + own["month"] < mkey]
+        monthly = _pivot(own).sum(axis=1)
+        mean_total = float(monthly.mean())
+        cv = float(monthly.std(ddof=1) / mean_total) if mean_total > 0 else 0.0
+        confidence = round(_confidence_from_cv(cv) * _evidence(n_months), 4)
+
+        rel_width = (high - low) / total if total > 0 else float("inf")
+        return Forecast(
+            total=total, breakdown=breakdown, confidence=confidence,
+            low=round(low, 2), high=round(high, 2),
+            risk_flag="volatile" if rel_width > VOLATILE_REL_WIDTH else None,
+            method=self.name,
+        )
