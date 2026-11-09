@@ -1,0 +1,10 @@
+# Training only: scripts/build_panel.py and scripts/fit_model.py.
+#
+# Kept out of requirements.txt so the service image does not carry
+# scikit-learn (and scipy with it) while nothing it serves needs them: removing
+# them took the image from 772 MB to 492 MB and Render's build from compiling
+# scikit-learn from source. If the ensemble ever ships, the service must load
+# it, and scikit-learn moves to requirements.txt at the version recorded in
+# models/ensemble-v1.manifest.json.
+-r requirements.txt
+scikit-learn==1.5.2
