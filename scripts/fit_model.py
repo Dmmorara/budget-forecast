@@ -60,15 +60,14 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from app.data import DATA_DIR, PUBLIC_DIR, load_budgets, load_monthly, provenance
+from app.data import load_budgets, load_monthly, provenance
 from app.evaluate import HEADER, Result, _month_keys, evaluate
 from app.forecaster import (
     MIN_MONTHS_FOR_FORECAST,
     BudgetBlendForecaster,
     Forecast,
 )
-from scripts.build_panel import FEATURES, build
-from scripts.minimise_extract import slice_alias
+from scripts.build_panel import FEATURES, build, deployed_households, training_panel
 
 RANDOM_STATE = 37
 TRAIN = (4, 15)
@@ -462,33 +461,6 @@ def ship_extratrees() -> None:
     )
 
 
-def deployed_households() -> dict[str, str]:
-    """
-    `{platform id: local id}` for the 60 households the deployment serves,
-    from scripts.minimise_extract's own selection, then checked record for
-    record against the committed data/public/ slice so a change to either side
-    cannot silently pick different households.
-    """
-    cols = ["user_id", "transaction_date", "category", "amount_kes"]
-    raw = pd.read_csv(
-        DATA_DIR / "spending_records.csv",
-        usecols=["user_profile_id", "transaction_date", "category", "amount_kes"],
-    )
-    alias = slice_alias(raw["user_profile_id"].astype(str).unique())
-    mine = (
-        raw[raw["user_profile_id"].astype(str).isin(alias)]
-        .assign(user_id=lambda d: d["user_profile_id"].astype(str).map(alias))[cols]
-        .sort_values(cols).reset_index(drop=True)
-    )
-    public = (
-        pd.read_csv(PUBLIC_DIR / "spending_records.csv")[cols]
-        .sort_values(cols).reset_index(drop=True)
-    )
-    if not mine.equals(public):
-        raise SystemExit("slice_alias does not reproduce data/public/; refusing to fit.")
-    return alias
-
-
 def restrict(result: Result, users: set[str], name: str) -> Result:
     """`result` scored over `users` only, with evaluate's own definitions."""
     rows = result.rows[result.rows["user_id"].astype(str).isin(users)]
@@ -531,9 +503,8 @@ def ship_extratrees_disjoint() -> None:
     trained = everyone - served
     assert served <= everyone and len(served) == 60
 
-    train_panel = months(panel, TRAIN)
-    train_panel = train_panel[train_panel["user_id"].isin(trained)]
-    assert not set(train_panel["user_id"]) & served
+    train_panel = training_panel(panel, served, *TRAIN)
+    assert set(train_panel["user_id"]) == trained
     holdout_rows = months(panel, HOLDOUT)
 
     # extratrees-v1, the all-500 fit, refitted here rather than read from
