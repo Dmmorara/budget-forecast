@@ -4,7 +4,9 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-models/
+models/*
+!models/*.joblib
+!models/*.manifest.json
 data/*.csv
 # The minimised, pseudonymised slice IS committed: the deployed service builds
 # from this repository, so anything it serves has to be here. See
