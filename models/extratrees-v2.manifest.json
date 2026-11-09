@@ -1,0 +1,122 @@
+{
+  "artefact": "extratrees-v2.joblib",
+  "sha256": "b8b88235349065928dd4df871ce8a515df452953f45e3b34e2c8e0063bf0941c",
+  "size_bytes": 4309443,
+  "model": "ExtraTreesRegressor, raw target, predictions clipped at 0",
+  "params": {
+    "n_estimators": 40,
+    "max_depth": 12,
+    "min_samples_leaf": 20,
+    "max_features": 1.0
+  },
+  "trained_through": "2026-06",
+  "training_target_months": "2025-07 to 2026-06",
+  "training_households": 440,
+  "training_rows": 57000,
+  "excluded_households": "the 60 in data/public/, selected by scripts.minimise_extract.slice_alias and checked record for record",
+  "deployed_households_in_training": 0,
+  "features": [
+    "mean_all",
+    "mean_3",
+    "mean_6",
+    "median_all",
+    "presence_rate",
+    "budget",
+    "has_budget",
+    "blend",
+    "n_history",
+    "cv",
+    "last_amount",
+    "target_month",
+    "days_in_month",
+    "household_mean_total",
+    "cat=Airtime and Data",
+    "cat=Cash Advance",
+    "cat=Crypto Purchase",
+    "cat=Electronics Upgrade",
+    "cat=Entertainment",
+    "cat=Foreign Transfer",
+    "cat=Gambling",
+    "cat=Groceries",
+    "cat=Household Help",
+    "cat=Jewellery",
+    "cat=Luxury Goods",
+    "cat=Medical",
+    "cat=Rent",
+    "cat=Savings",
+    "cat=School Fees",
+    "cat=Transport",
+    "cat=Utilities"
+  ],
+  "random_state": 37,
+  "versions": {
+    "scikit-learn": "1.5.2",
+    "pandas": "2.2.3",
+    "numpy": "2.1.1",
+    "joblib": "1.6.0"
+  },
+  "git_head": "9f6e0203bfeca00a3db4e7b75e321e64930ee719",
+  "git_tracked_changes_uncommitted": false,
+  "data": "SYNTHETIC platform sandbox, data/spending_records.csv",
+  "holdout": {
+    "months": "2026-07 to 2026-09",
+    "trained_440": {
+      "households": 440,
+      "n": 1320,
+      "mae": 8319.7,
+      "mape_pct": 10.13,
+      "median_ape_pct": 8.1,
+      "cat_mae": 1855.9,
+      "signed_error": -22.1,
+      "blend": {
+        "mae": 8916.2,
+        "cat_mae": 1933.4,
+        "signed_error": 881.6
+      },
+      "vs_blend": {
+        "mae_delta": -596.4,
+        "mae_t": -6.04,
+        "mape_delta_pp": -0.85,
+        "mape_t": -7.58,
+        "cat_mae_delta": -77.6,
+        "cat_mae_t": -8.21,
+        "wins": 721
+      },
+      "vs_extratrees_v1": {
+        "mae_delta": 32.3,
+        "mae_t": 1.22,
+        "cat_mae_delta": 0.9,
+        "cat_mae_t": 0.35
+      }
+    },
+    "deployed_60": {
+      "households": 60,
+      "n": 180,
+      "mae": 9086.3,
+      "mape_pct": 11.19,
+      "median_ape_pct": 9.56,
+      "cat_mae": 1823.0,
+      "signed_error": 50.3,
+      "blend": {
+        "mae": 9124.5,
+        "cat_mae": 1869.1,
+        "signed_error": 402.7
+      },
+      "vs_blend": {
+        "mae_delta": -38.2,
+        "mae_t": -0.16,
+        "mape_delta_pp": -0.03,
+        "mape_t": -0.1,
+        "cat_mae_delta": -46.2,
+        "cat_mae_t": -1.99,
+        "wins": 88
+      },
+      "vs_extratrees_v1": {
+        "mae_delta": 9.7,
+        "mae_t": 0.13,
+        "cat_mae_delta": 6.6,
+        "cat_mae_t": 0.85
+      }
+    }
+  }
+}
