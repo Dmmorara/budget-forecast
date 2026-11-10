@@ -124,6 +124,8 @@ tests/
   test_forecaster.py    the baselines
   test_evaluation.py    the harness, and the anti-leakage guarantee
   test_model.py         the model, paired across populations
+  test_model_pins.py    every model manifest's scikit-learn, numpy and pandas
+                        versions match requirements.txt; a bump fails CI
 BASELINE.md      the number to beat, and where the removable error lives
 MODEL.md         what beat it, what did not, and why three components were cut
 PERFORMANCE.md   NFR-07 response times against the deployed service
@@ -152,6 +154,33 @@ and the standard deviation of the MAE difference between two forecasters on a si
 population is 50-110 KES, so a single-population comparison cannot tell an improvement
 from a lucky draw. Every figure in [`MODEL.md`](MODEL.md) is paired across 12 populations.
 Measuring on one population first suggested three components worked that do not.
+
+## Requirement numbering
+
+The code, tests and other documents here use the original Chapter 4 numbering:
+FR-01 to FR-16 and NFR-01 to NFR-10. The submitted report consolidates these into
+five functional and five non-functional requirements. The IDs in this repository
+are **not** renumbered. To find a requirement in the report, use this table:
+
+| Report | Original IDs used in this repo | Covers |
+|---|---|---|
+| FR-01 | FR-01, FR-03, FR-04 | the response contract |
+| FR-02 | FR-05 | only months before the target month are used |
+| FR-03 | FR-02, FR-06, FR-07 | honest degradation, including the volatile flag |
+| FR-04 | FR-08, FR-09 | the budget blend and `GET /budget` |
+| FR-05 | FR-10 to FR-16 | client presentation |
+| NFR-01 | NFR-02 | honesty of uncertainty |
+| NFR-02 | NFR-03, NFR-04 | privacy and security |
+| NFR-03 | NFR-01, NFR-05, NFR-09 | contract stability and reproducibility |
+| NFR-04 | NFR-07, NFR-08 | performance and availability |
+| NFR-05 | NFR-06, NFR-10 | portability and usability |
+
+The amended volatile rule ("FR-07 as amended" in `app/`, `MODEL_ENSEMBLE.md` and the
+tests) is a clause inside the report's FR-03, not a requirement of its own. So, for
+example, `PERFORMANCE.md`'s NFR-07 is the report's NFR-04.
+
+No copy of Chapter 4 is kept in this repository. The submitted report is the
+authority for requirement wording.
 
 ## Contract notes
 
