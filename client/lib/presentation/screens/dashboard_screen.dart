@@ -1,6 +1,6 @@
 /// Forecast dashboard — wireframe 4.12b (phone) and 4.14f (desktop), FR-11.
 ///
-/// Leads with a sentence stating the RANGE and a band placing the point
+/// Leads with a hero card stating the RANGE and a band placing the point
 /// estimate inside it, so the uncertainty is read before the single number.
 library;
 
@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../data/models.dart';
 import '../../state/forecast_controller.dart';
 import '../format.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'breakdown_screen.dart';
 import 'budget_screen.dart';
@@ -36,22 +37,58 @@ class DashboardScreen extends StatelessWidget {
     final month = controller.month!;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         _MonthStepper(month: month),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         const SyntheticNotice(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         ForecastStatus(
           builder: (result) => [
             _RangeSummary(result: result, month: month, wide: wide),
-            const SizedBox(height: 24),
+            if (riskNotice(result.riskFlag) case final String notice) ...[
+              const SizedBox(height: 12),
+              NoticeBanner(
+                key: const Key('risk-notice'),
+                icon: Icons.warning_amber_rounded,
+                background: Palette.cautionBg,
+                foreground: Palette.cautionInk,
+                child: Text(notice),
+              ),
+            ],
+            const SizedBox(height: 16),
             if (wide)
               _WidePanels(result: result)
             else ...[
-              _LinkTile(label: 'Category breakdown', onTap: onOpenBreakdown),
-              _LinkTile(label: 'Budget vs forecast', onTap: onOpenBudget),
-              _LinkTile(label: 'Compare months', onTap: onOpenMonths),
+              _LargestCategories(result: result, onSeeAll: onOpenBreakdown),
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'Explore',
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Column(
+                  children: [
+                    _LinkRow(
+                      icon: Icons.donut_small_outlined,
+                      label: 'Category breakdown',
+                      detail: 'Every category, largest first',
+                      onTap: onOpenBreakdown,
+                    ),
+                    _LinkRow(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Budget vs forecast',
+                      detail: 'The declared budget, category by category',
+                      onTap: onOpenBudget,
+                    ),
+                    _LinkRow(
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Compare months',
+                      detail: 'Forecasts either side of ${monthShort(month)}',
+                      onTap: onOpenMonths,
+                      last: true,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
@@ -103,34 +140,54 @@ class _MonthStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.read<ForecastController>();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
+    Widget arrow(String key, String tooltip, IconData icon, int step) =>
         IconButton(
-          key: const Key('previous-month'),
-          tooltip: 'Previous month',
-          icon: const Icon(Icons.chevron_left),
-          onPressed: () => controller.changeMonth(-1),
-        ),
-        Flexible(
-          child: Text(
-            monthLabel(month),
-            key: const Key('selected-month'),
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
+          key: Key(key),
+          tooltip: tooltip,
+          icon: Icon(icon),
+          onPressed: () => controller.changeMonth(step),
+          style: IconButton.styleFrom(
+            backgroundColor: Palette.cream,
+            foregroundColor: Palette.ink,
           ),
+        );
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Palette.surface,
+          borderRadius: BorderRadius.circular(100),
         ),
-        IconButton(
-          key: const Key('next-month'),
-          tooltip: 'Next month',
-          icon: const Icon(Icons.chevron_right),
-          onPressed: () => controller.changeMonth(1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            arrow(
+              'previous-month',
+              'Previous month',
+              Icons.chevron_left_rounded,
+              -1,
+            ),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  monthLabel(month),
+                  key: const Key('selected-month'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+            arrow('next-month', 'Next month', Icons.chevron_right_rounded, 1),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
+/// The hero card: the range first, then the band, then the single number.
 class _RangeSummary extends StatelessWidget {
   const _RangeSummary({
     required this.result,
@@ -148,63 +205,90 @@ class _RangeSummary extends StatelessWidget {
     final low = result.low;
     final high = result.high;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (low != null && high != null) ...[
-          if (wide)
-            Text(
-              '${monthLabel(month)}: likely between ${kes(low)} and ${kes(high)}',
-              key: const Key('range-sentence'),
-              style: textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+      decoration: BoxDecoration(
+        color: Palette.forest,
+        borderRadius: BorderRadius.circular(Radii.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (low != null && high != null) ...[
+            if (wide)
+              Text(
+                '${monthLabel(month)}: likely between ${kes(low)} and ${kes(high)}',
+                key: const Key('range-sentence'),
+                style: textTheme.headlineSmall?.copyWith(color: Colors.white),
+              )
+            else ...[
+              Row(
+                children: [
+                  const Icon(
+                    Icons.insights_rounded,
+                    size: 18,
+                    color: Palette.onForestMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Likely to spend between',
+                      style: textTheme.titleSmall?.copyWith(
+                        color: Palette.onForestMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            )
-          else ...[
-            Text('Likely to spend between', style: textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              '${kes(low)} and ${kes(high)}',
-              key: const Key('range-sentence'),
-              style: textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 6),
+              // One line, scaled down if it must be, so an amount is never
+              // split across lines.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${kes(low)} and ${kes(high)}',
+                  key: const Key('range-sentence'),
+                  maxLines: 1,
+                  style: textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
+            ],
+            const SizedBox(height: 18),
+            RangeBand(low: low, high: high, point: result.estimatedTotal),
+            const SizedBox(height: 12),
           ],
+          Text(
+            'Point estimate ${kes(result.estimatedTotal)}',
+            key: const Key('point-estimate'),
+            style: textTheme.titleMedium?.copyWith(
+              color: Palette.onForestMuted,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 16),
-          RangeBand(low: low, high: high, point: result.estimatedTotal),
-          const SizedBox(height: 10),
-        ],
-        Text(
-          'Point estimate ${kes(result.estimatedTotal)}',
-          key: const Key('point-estimate'),
-          style: textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _Chip('Confidence ${result.confidence.toStringAsFixed(2)}'),
-            _Chip('Risk flag: ${riskLabel(result.riskFlag)}'),
-          ],
-        ),
-        if (riskNotice(result.riskFlag) case final String notice) ...[
-          const SizedBox(height: 12),
-          Container(
-            key: const Key('risk-notice'),
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(notice),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _Pill(
+                icon: Icons.verified_outlined,
+                text: 'Confidence ${result.confidence.toStringAsFixed(2)}',
+              ),
+              _Pill(
+                icon: result.riskFlag == null
+                    ? Icons.flag_outlined
+                    : Icons.flag_rounded,
+                text: 'Risk flag: ${riskLabel(result.riskFlag)}',
+              ),
+            ],
           ),
         ],
-      ],
+      ),
     );
   }
 }
@@ -244,7 +328,6 @@ class RangeBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     // The track extends half the range's width either side, so the band sits
     // in the middle and its width reads as uncertainty, not as a scale from 0.
     final half = ((high - low) / Decimal.fromInt(2)).toDecimal(
@@ -262,7 +345,7 @@ class RangeBand extends StatelessWidget {
           'point estimate ${kes(point)}',
       excludeSemantics: true,
       child: SizedBox(
-        height: 44,
+        height: 40,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final w = constraints.maxWidth;
@@ -272,11 +355,11 @@ class RangeBand extends StatelessWidget {
                   left: 0,
                   right: 0,
                   top: 8,
-                  height: 28,
+                  height: 24,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
-                      border: Border.all(color: scheme.outlineVariant),
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -284,21 +367,29 @@ class RangeBand extends StatelessWidget {
                   left: w * at(low),
                   width: w * (at(high) - at(low)),
                   top: 8,
-                  height: 28,
+                  height: 24,
                   child: Container(
                     key: const Key('range-band'),
                     decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      border: Border.all(color: scheme.outline),
+                      color: Palette.sageOnDark,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
+                // The point estimate: a white mark with a 2 px forest ring,
+                // so it stays distinct where it crosses the band.
                 Positioned(
-                  left: (w * at(point) - 2).clamp(0.0, w - 4),
-                  width: 4,
+                  left: (w * at(point) - 4).clamp(0.0, w - 8),
+                  width: 8,
                   top: 0,
                   bottom: 0,
-                  child: Container(color: scheme.onSurface),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Palette.forest, width: 2),
+                    ),
+                  ),
                 ),
               ],
             );
@@ -309,44 +400,152 @@ class RangeBand extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip(this.text);
+/// A translucent pill on the hero card.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.text});
+  final IconData icon;
   final String text;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      border: Border.all(color: Theme.of(context).colorScheme.outline),
-      borderRadius: BorderRadius.circular(8),
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(100),
     ),
-    child: Text(text),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.white),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(color: Colors.white),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
-class _LinkTile extends StatelessWidget {
-  const _LinkTile({required this.label, required this.onTap});
+/// One destination in the Explore card: icon tile, label, detail, chevron.
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({
+    required this.icon,
+    required this.label,
+    required this.detail,
+    required this.onTap,
+    this.last = false,
+  });
+
+  final IconData icon;
   final String label;
+  final String detail;
   final VoidCallback onTap;
+  final bool last;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
-        alignment: Alignment.centerLeft,
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Radii.tile),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(bottom: BorderSide(color: Palette.outline)),
+        ),
+        child: Row(
+          children: [
+            IconTile(icon),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: textTheme.titleSmall),
+                  Text(
+                    detail,
+                    style: textTheme.bodySmall?.copyWith(color: Palette.muted),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Palette.muted),
+          ],
+        ),
       ),
-      child: Row(
+    );
+  }
+}
+
+/// The three largest categories, as rows in a transaction-style list.
+class _LargestCategories extends StatelessWidget {
+  const _LargestCategories({required this.result, required this.onSeeAll});
+  final ForecastResult result;
+  final VoidCallback onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = result.breakdownLargestFirst.take(3).toList();
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final total = sum(result.breakdown.values);
+    final textTheme = Theme.of(context).textTheme;
+
+    return SectionCard(
+      title: 'Largest categories',
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+      trailing: TextButton(
+        onPressed: onSeeAll,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('See all'),
+            SizedBox(width: 4),
+            Icon(Icons.arrow_forward_rounded, size: 16),
+          ],
+        ),
+      ),
+      child: Column(
         children: [
-          Expanded(child: Text(label)),
-          const Icon(Icons.chevron_right),
+          for (final (i, row) in rows.indexed)
+            Container(
+              padding: const EdgeInsets.fromLTRB(0, 10, 8, 10),
+              decoration: BoxDecoration(
+                border: i == rows.length - 1
+                    ? null
+                    : const Border(bottom: BorderSide(color: Palette.outline)),
+              ),
+              child: Row(
+                children: [
+                  IconTile(categoryIcon(row.key), dark: i == 0),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(row.key, style: textTheme.titleSmall),
+                        Text(
+                          '${percentOf(row.value, total)} of the estimate',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: Palette.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(kes(row.value), style: textTheme.titleSmall),
+                ],
+              ),
+            ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Wireframe 4.14f: breakdown and budget comparison side by side.
@@ -375,38 +574,19 @@ class _WidePanelsState extends State<_WidePanels> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: _Panel(
+          child: SectionCard(
             title: 'Category breakdown',
             child: BreakdownList(result: widget.result),
           ),
         ),
-        const SizedBox(width: 20),
+        const SizedBox(width: 16),
         const Expanded(
-          child: _Panel(title: 'Budget vs forecast', child: BudgetComparison()),
+          child: SectionCard(
+            title: 'Budget vs forecast',
+            child: BudgetComparison(),
+          ),
         ),
       ],
     );
   }
-}
-
-class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: EdgeInsets.zero,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    ),
-  );
 }

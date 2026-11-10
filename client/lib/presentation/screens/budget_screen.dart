@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../../state/forecast_controller.dart';
 import '../format.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'dashboard_screen.dart';
 
@@ -36,14 +37,16 @@ class _BudgetScreenState extends State<BudgetScreen> {
   Widget build(BuildContext context) {
     final controller = context.watch<ForecastController>();
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         ContextLine(
           '${controller.householdId}  |  ${monthLabel(controller.month!)}',
         ),
         const SyntheticNotice(),
         const SizedBox(height: 16),
-        ForecastStatus(builder: (_) => const [BudgetComparison()]),
+        ForecastStatus(
+          builder: (_) => const [SectionCard(child: BudgetComparison())],
+        ),
       ],
     );
   }
@@ -78,21 +81,18 @@ class _Comparison extends StatelessWidget {
   Widget build(BuildContext context) {
     final forecast = controller.forecast.value!;
     final allocated = controller.budget.value!.allocated;
-    final scheme = Theme.of(context).colorScheme;
-    final budgetColor = scheme.outline;
-    final forecastColor = scheme.onSurface;
+    // Two series of one hue: budget the lighter step, forecast the darker.
+    const budgetColor = Palette.sage;
+    const forecastColor = Palette.forest;
 
     // An unknown household, or one that declared no budget, is a 200 with an
     // empty mapping: nothing to compare against, not an error.
     if (allocated.isEmpty) {
-      return Container(
+      return NoticeBanner(
         key: const Key('no-budget'),
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
+        icon: Icons.info_outline_rounded,
+        background: Palette.mint,
+        foreground: Palette.forest,
         child: Text(
           'No declared budget for ${controller.householdId}, so there is '
           'nothing to compare the forecast against.',
@@ -115,22 +115,21 @@ class _Comparison extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
+        NoticeBanner(
           key: const Key('over-summary'),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            border: Border.all(color: scheme.outline),
-            borderRadius: BorderRadius.circular(8),
-          ),
+          icon: over.isEmpty ? Icons.eco_outlined : Icons.warning_amber_rounded,
+          background: over.isEmpty ? Palette.mint : Palette.overBg,
+          foreground: over.isEmpty ? Palette.forest : Palette.over,
           child: Text(
             over.isEmpty
                 ? 'Forecast is within budget in every category'
                 : 'Forecast exceeds budget in ${over.length} '
                       '${over.length == 1 ? 'category' : 'categories'}',
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(color: over.isEmpty ? Palette.forest : Palette.over),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         Wrap(
           spacing: 24,
           children: [
@@ -188,48 +187,60 @@ class _PairRow extends StatelessWidget {
     final budget = this.budget;
     return Padding(
       key: Key('budget-row-$category'),
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(child: Text(category)),
+              IconTile(categoryIcon(category), size: 32),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  category,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
               if (over)
                 Container(
                   key: Key('over-$category'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 2,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    border: Border.all(width: 1.5),
-                    borderRadius: BorderRadius.circular(6),
+                    color: Palette.overBg,
+                    borderRadius: BorderRadius.circular(100),
                   ),
-                  child: const Text(
+                  child: Text(
                     'over',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Palette.over,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           FractionBar(
             fraction: budget == null ? 0 : fractionOf(budget, largest),
             color: budgetColor,
-            height: 10,
+            height: 8,
           ),
-          const SizedBox(height: 3),
+          // The 2 px surface gap between the paired bars.
+          const SizedBox(height: 2),
           FractionBar(
             fraction: fractionOf(forecast, largest),
             color: forecastColor,
-            height: 10,
+            height: 8,
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 6),
           Text(
             'Budget ${budget == null ? 'not declared' : kes(budget)}'
             '  ·  Forecast ${kes(forecast)}',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: Palette.muted),
           ),
         ],
       ),
@@ -246,7 +257,14 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Container(width: 22, height: 12, color: color),
+      Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
       const SizedBox(width: 6),
       Text(label),
     ],

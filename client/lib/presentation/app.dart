@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../state/forecast_controller.dart';
 import 'screens/household_screen.dart';
 import 'shell.dart';
+import 'theme.dart';
 
 /// Idle shows household selection; any selected household shows the shell.
 /// Switching on the controller rather than pushing routes keeps Figure 4.8's
@@ -15,10 +16,7 @@ class BudgetForecastApp extends StatelessWidget {
 
   final ForecastController controller;
 
-  static ThemeData theme() => ThemeData(
-    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF37474F)),
-    useMaterial3: true,
-  );
+  static ThemeData theme() => appTheme();
 
   @override
   Widget build(BuildContext context) {
