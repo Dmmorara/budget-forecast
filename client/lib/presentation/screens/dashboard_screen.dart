@@ -218,10 +218,10 @@ String riskLabel(RiskFlag? flag) => switch (flag) {
 
 /// Table 4.9's client behaviour for the flags shown alongside a forecast.
 String? riskNotice(RiskFlag? flag) => switch (flag) {
+  // The flag describes the household's spending, not the forecast (FR-03 as
+  // amended): the range is the same share of the estimate for everyone.
   RiskFlag.volatile =>
-    'Caution: this household\'s spending varies a lot '
-        'from month to month, so the likely range is wide. Plan against the '
-        'upper end.',
+    'Caution: this household\'s spending varies a lot from month to month.',
   RiskFlag.overspendRisk =>
     'Overspend notice: this forecast is '
         'materially above the household\'s declared budget.',
