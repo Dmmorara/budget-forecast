@@ -38,3 +38,16 @@ String monthShort(YearMonth month) =>
     DateFormat('MMM').format(DateTime(month.year, month.month));
 
 String monthName(int month) => DateFormat('MMMM').format(DateTime(2000, month));
+
+/// "32%": [value]'s share of [total], whole percent, for display only.
+String percentOf(Decimal value, Decimal total) =>
+    '${(fractionOf(value, total) * 100).round()}%';
+
+/// "109K": an amount in whole thousands, for a label on a chart mark where
+/// the full figure is shown alongside it.
+String thousands(Decimal amount) {
+  final k = (amount / Decimal.fromInt(1000)).toDecimal(
+    scaleOnInfinitePrecision: 0,
+  );
+  return '${k.round()}K';
+}

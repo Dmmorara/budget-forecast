@@ -1,9 +1,10 @@
 /// The frame around the forecast screens.
 ///
-/// Phone (wireframes 4.12b-4.14e): an app bar whose back arrow changes
+/// Phone (wireframes 4.12b-4.14e): an app bar whose round back button changes
 /// household, and Forecast / Budget / Months in a bottom navigation bar.
-/// Desktop (4.14f): the same three destinations in a side panel, with the
-/// household at its foot, and breakdown and budget side by side on Forecast.
+/// Desktop (4.14f): the same three destinations in a side panel card, with
+/// the household at its foot, and breakdown and budget side by side on
+/// Forecast.
 library;
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'screens/breakdown_screen.dart';
 import 'screens/budget_screen.dart';
 import 'screens/comparison_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'theme.dart';
+import 'widgets/common.dart';
 
 /// At or above this width the side navigation layout is used (NFR-10).
 const wideBreakpoint = 900.0;
@@ -93,13 +96,19 @@ class _HomeShellState extends State<HomeShell> {
 
   Widget _narrowScaffold(String householdId, Widget body) => Scaffold(
     appBar: AppBar(
-      leading: IconButton(
-        key: const Key('back'),
-        tooltip: _showBreakdown ? 'Back to forecast' : 'Change household',
-        icon: const Icon(Icons.arrow_back),
-        onPressed: _back,
+      toolbarHeight: 68,
+      leadingWidth: 72,
+      leading: Center(
+        child: _CircleButton(
+          key: const Key('back'),
+          tooltip: _showBreakdown ? 'Back to forecast' : 'Change household',
+          icon: Icons.arrow_back_rounded,
+          onPressed: _back,
+        ),
       ),
-      title: Text(_title(householdId)),
+      title: Text(_title(householdId), overflow: TextOverflow.ellipsis),
+      // Balances the leading button so the title stays centred.
+      actions: const [SizedBox(width: 72)],
     ),
     body: SafeArea(child: body),
     bottomNavigationBar: NavigationBar(
@@ -108,14 +117,17 @@ class _HomeShellState extends State<HomeShell> {
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.insights_outlined),
+          selectedIcon: Icon(Icons.insights_rounded),
           label: 'Forecast',
         ),
         NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: Icon(Icons.account_balance_wallet_rounded),
           label: 'Budget',
         ),
         NavigationDestination(
-          icon: Icon(Icons.calendar_view_month_outlined),
+          icon: Icon(Icons.bar_chart_outlined),
+          selectedIcon: Icon(Icons.bar_chart_rounded),
           label: 'Months',
         ),
       ],
@@ -123,72 +135,176 @@ class _HomeShellState extends State<HomeShell> {
   );
 
   Widget _wideScaffold(String householdId, Widget body) {
-    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('budget-forecast')),
-      body: Row(
-        children: [
-          // A Material, not a coloured Container, so the selected item's
-          // highlight and ink are painted on top of the panel's colour.
-          Material(
-            color: scheme.surfaceContainerLow,
-            child: SizedBox(
-              width: 220,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final tab in _Tab.values)
-                      ListTile(
-                        key: Key('side-${tab.name}'),
-                        selected: _tab == tab,
-                        title: Text(
-                          switch (tab) {
-                            _Tab.forecast => 'Forecast',
-                            _Tab.budget => 'Budget',
-                            _Tab.months => 'Months',
-                          },
-                          style: TextStyle(
-                            fontWeight: _tab == tab
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+      body: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                child: SizedBox(
+                  width: 232,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 22, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8, bottom: 24),
+                          child: Row(
+                            children: [
+                              const IconTile(
+                                Icons.insights_rounded,
+                                size: 36,
+                                dark: true,
+                              ),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Text(
+                                  'budget-forecast',
+                                  style: textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        onTap: () => _select(tab),
-                      ),
-                    const Spacer(),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Household\n$householdId',
-                        style: TextStyle(color: scheme.onSurfaceVariant),
-                      ),
+                        for (final tab in _Tab.values)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: _SideItem(
+                              key: Key('side-${tab.name}'),
+                              selected: _tab == tab,
+                              icon: switch (tab) {
+                                _Tab.forecast => Icons.insights_rounded,
+                                _Tab.budget =>
+                                  Icons.account_balance_wallet_rounded,
+                                _Tab.months => Icons.bar_chart_rounded,
+                              },
+                              label: switch (tab) {
+                                _Tab.forecast => 'Forecast',
+                                _Tab.budget => 'Budget',
+                                _Tab.months => 'Months',
+                              },
+                              onTap: () => _select(tab),
+                            ),
+                          ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Palette.cream,
+                            borderRadius: BorderRadius.circular(Radii.tile),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Household\n$householdId',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: Palette.muted,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                key: const Key('change-household'),
+                                onPressed: _back,
+                                child: const Text('Change household'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: TextButton(
-                        key: const Key('change-household'),
-                        onPressed: _back,
-                        child: const Text('Change household'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: body,
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1100),
+                  child: body,
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A round white button, as in the reference header.
+class _CircleButton extends StatelessWidget {
+  const _CircleButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    onPressed: onPressed,
+    icon: Icon(icon),
+    style: IconButton.styleFrom(
+      backgroundColor: Palette.surface,
+      foregroundColor: Palette.ink,
+      fixedSize: const Size(48, 48),
+    ),
+  );
+}
+
+/// A side-panel destination: a forest pill when selected.
+class _SideItem extends StatelessWidget {
+  const _SideItem({
+    super.key,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.white : Palette.muted;
+    return Material(
+      color: selected ? Palette.forest : Colors.transparent,
+      borderRadius: BorderRadius.circular(100),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(100),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            children: [
+              Icon(icon, color: fg, size: 20),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
