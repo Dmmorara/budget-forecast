@@ -91,7 +91,15 @@ void main() {
     );
     await showForecast(tester, 'h015');
     expect(find.text('Risk flag: volatile'), findsOneWidget);
-    expect(find.textContaining('Caution'), findsOneWidget);
+    expect(
+      find.text(
+        'Caution: this household\'s spending varies a lot from month to month.',
+      ),
+      findsOneWidget,
+    );
+    // The flag no longer widens the range, so the copy must not say it does.
+    expect(find.textContaining('upper end'), findsNothing);
+    expect(find.textContaining('range is wide'), findsNothing);
     expect(find.text('KSh 55,658 and KSh 75,071'), findsOneWidget);
   });
 
