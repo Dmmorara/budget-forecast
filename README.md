@@ -102,6 +102,7 @@ app/
   forecaster.py  the Forecaster interface, the two baselines, and
                  ExtraTreesForecaster (the fitted model; not yet served)
   features.py    the model's features: one definition for fitting and serving
+  insights.py    GET /insights: usual spend, spending calendar, discretionary trend
   evaluate.py    rolling-origin time split, metrics, noise floor
   model.py       the shipped forecaster: fixed obligations + habitual rates
   data.py        real sandbox CSVs if present in data/, synthetic otherwise
@@ -124,6 +125,8 @@ tests/
   test_forecaster.py    the baselines
   test_evaluation.py    the harness, and the anti-leakage guarantee
   test_model.py         the model, paired across populations
+  test_insights.py      GET /insights: nothing from the target month, the median,
+                        an even spread not reported as a habit
   test_model_pins.py    every model manifest's scikit-learn, numpy and pandas
                         versions match requirements.txt; a bump fails CI
 BASELINE.md      the number to beat, and where the removable error lives
@@ -218,6 +221,41 @@ GET /budget?userId=h015
 An unknown household is not an error, as with `POST /forecast`. For the client it
 means the same as a household with no budget: there is nothing to show beside the
 forecast. A 404 would add an error class the client is not specified to handle.
+
+### GET /insights
+
+A separate, additive endpoint for the client's Insights screen. `POST /forecast` is
+unchanged. It returns aggregates only, never individual transactions, and every figure
+comes from transactions dated **before** the requested month, the forecaster's own rule.
+
+```
+GET /insights?userId=h043&month=10&year=2026
+  200: { "userId": "h043", "month": 10, "year": 2026, "historyMonths": 18,
+         "usual": { "months": ["2026-07", "2026-08", "2026-09"], "total": ..., "breakdown": {...} },
+         "calendar": { "months": [...12], "monthParts": [...4], "weekdays": [...7] },
+         "discretionary": { "categories": [...4], "months": [...12] },
+         "isSynthetic": true }
+```
+
+| section | what it is |
+|---|---|
+| `usual` | a typical month: the **median** per category of the last three months with spending. The client sets the forecast against it ("What changed"). A median, so a one-off purchase is not "usual" |
+| `calendar` | the share of the last 12 months' spending in days 1-7, 8-14, 15-21, 22-end and on each weekday, each beside the share an even spread would give. `standsOut` is true only when the share beats even by more than **three standard errors** of its month-to-month variation (and by at least 15%) |
+| `discretionary` | each of the last 12 months' spending on Gambling, Crypto Purchase, Cash Advance and Luxury Goods, as an amount and a share of the month. The grouping is this project's (`DISCRETIONARY` in `app/insights.py`), not the platform's |
+
+| case | response |
+|---|---|
+| three or more months of history | 200, all three sections |
+| fewer than three months, or unknown household | 200, sections `null` — the same threshold as `insufficient_history` |
+| `userId` missing or empty, `month` or `year` missing or out of range | 422 |
+
+**What the synthetic slice shows.** Its generator spreads every category evenly through
+the month and week, so for most households the calendar correctly reports "spread
+evenly". With a two-standard-error bar, 10 of the 60 deployed households showed a
+"habit" that was noise; at three, one does (h043, whose rent falls in days 15-21 in 9
+of 12 months), and an evenly spread simulated household is flagged 7 times in 200.
+Discretionary spending is rare: 42 of the 60 households have none in the last 12
+months.
 
 ## Run it
 

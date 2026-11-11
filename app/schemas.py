@@ -103,3 +103,100 @@ class BudgetResponse(BaseModel):
     userId: str
     allocated: dict[CategoryName, float] = Field(default_factory=dict)
     isSynthetic: bool = True
+
+
+# ── GET /insights ──
+#
+# A separate, additive endpoint for the client's Insights screen: what the
+# forecast differs from, when in the month money goes out, and how a fixed set
+# of categories trends. POST /forecast is untouched.
+#
+# Aggregates only. No individual transaction leaves the service, and every
+# figure is computed from months STRICTLY BEFORE the requested one, the same
+# rule the forecaster follows (FR-05), so an insight can never quote spending
+# the forecast was not allowed to see.
+
+YearMonthText = str  # "2026-09"
+
+
+class UsualSpend(BaseModel):
+    """
+    A typical month's spend per category: the median over the three most
+    recent months with spending before the target, a category absent from a
+    month counting as 0. `total` is the sum of the medians.
+    """
+
+    months: list[YearMonthText] = Field(description="The months averaged, oldest first")
+    total: float = Field(ge=0.0)
+    breakdown: dict[CategoryName, float] = Field(default_factory=dict)
+
+
+class MonthPart(BaseModel):
+    """
+    A stretch of days within a month and the share of spending that falls in it.
+
+    `evenShare` is what the share would be if spending were spread evenly over
+    the calendar days (a stretch of 10 days in a 31-day month is 32%).
+    `standsOut` is true only when the share beats it by more than twice the
+    month-to-month standard error: a single busy month is not a pattern.
+    """
+
+    firstDay: int = Field(ge=1, le=31)
+    lastDay: int = Field(ge=1, le=31)
+    share: float = Field(ge=0.0, le=1.0)
+    evenShare: float = Field(ge=0.0, le=1.0)
+    standsOut: bool = False
+    averageAmount: float = Field(ge=0.0, description="Average per month, KES")
+
+
+class WeekdayShare(BaseModel):
+    """As MonthPart, for a day of the week."""
+
+    weekday: int = Field(ge=1, le=7, description="ISO weekday: 1 = Monday")
+    share: float = Field(ge=0.0, le=1.0)
+    evenShare: float = Field(ge=0.0, le=1.0)
+    standsOut: bool = False
+    averageAmount: float = Field(ge=0.0, description="Average per month, KES")
+
+
+class SpendingCalendar(BaseModel):
+    months: list[YearMonthText]
+    monthParts: list[MonthPart]
+    weekdays: list[WeekdayShare]
+
+
+class DiscretionaryMonth(BaseModel):
+    month: YearMonthText
+    total: float = Field(ge=0.0)
+    amount: float = Field(ge=0.0)
+    share: float = Field(ge=0.0, le=1.0)
+    byCategory: dict[CategoryName, float] = Field(default_factory=dict)
+
+
+class DiscretionaryTrend(BaseModel):
+    categories: list[CategoryName]
+    months: list[DiscretionaryMonth]
+
+
+class InsightsResponse(BaseModel):
+    """
+    out of GET /insights?userId=...&month=...&year=...:
+
+      { "userId": "h015", "month": 10, "year": 2026, "historyMonths": 18,
+        "usual": {...} | null, "calendar": {...} | null,
+        "discretionary": {...} | null, "isSynthetic": true }
+
+    Fewer than three months of history before the target, or an unknown
+    household, is a 200 with the three sections null: the same threshold and
+    the same choice as POST /forecast's insufficient_history (FR-06), so the
+    client explains rather than errors.
+    """
+
+    userId: str
+    month: int = Field(ge=1, le=12)
+    year: int = Field(ge=2000, le=2100)
+    historyMonths: int = Field(ge=0, description="Months with recorded spending before the target")
+    usual: Optional[UsualSpend] = None
+    calendar: Optional[SpendingCalendar] = None
+    discretionary: Optional[DiscretionaryTrend] = None
+    isSynthetic: bool = True
