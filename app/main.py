@@ -14,8 +14,8 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.schemas import BudgetResponse, Request, Response
-from app.service import FORECASTER, budget_for, handle
+from app.schemas import BudgetResponse, InsightsResponse, Request, Response
+from app.service import FORECASTER, budget_for, handle, insights
 
 app = FastAPI(title="U-CS 37 — budget-forecast", version="0.1.0")
 
@@ -91,6 +91,22 @@ def budget(
     is simply no budget to show. A missing or empty userId is a 422.
     """
     return budget_for(userId)
+
+
+@app.get("/insights", response_model=InsightsResponse)
+def insights_endpoint(
+    userId: str = Query(min_length=1, description="Household/user identifier"),
+    month: int = Query(ge=1, le=12, description="The month the insights lead up to, 1-12"),
+    year: int = Query(ge=2000, le=2100, description="Its year"),
+) -> InsightsResponse:
+    """
+    Usual spend, spending calendar and discretionary trend for the months
+    before `month`/`year` (additive; POST /forecast is unchanged).
+
+    Fewer than three months of history, or an unknown household, is a 200 with
+    the three sections null, as POST /forecast answers insufficient_history.
+    """
+    return insights(userId, month, year)
 
 
 # Serve the demo console at the root, so the deployed URL shows something a

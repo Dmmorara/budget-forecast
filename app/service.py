@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.data import SANDBOX_IS_SYNTHETIC, load_budgets, load_monthly
+from app.data import SANDBOX_IS_SYNTHETIC, load_budgets, load_monthly, load_transactions
 from app.forecaster import (
     MIN_MONTHS_FOR_FORECAST,
     SHIPPED_ARTEFACT,
@@ -44,7 +44,8 @@ from app.forecaster import (
     ExtraTreesForecaster,
     Forecast,
 )
-from app.schemas import BudgetResponse, Request, Response
+from app.insights import insights_for
+from app.schemas import BudgetResponse, InsightsResponse, Request, Response
 
 log = logging.getLogger("budget_forecast")
 if not log.handlers:
@@ -201,3 +202,9 @@ def budget_for(user_id: str) -> BudgetResponse:
         allocated={row.category: round(float(row.allocated), 2) for row in rows.itertuples()},
         isSynthetic=SANDBOX_IS_SYNTHETIC,
     )
+
+
+def insights(user_id: str, month: int, year: int) -> InsightsResponse:
+    """GET /insights: see app/insights.py for what each section means."""
+    records, is_synthetic = load_transactions()
+    return insights_for(records, user_id, year, month, is_synthetic=is_synthetic)

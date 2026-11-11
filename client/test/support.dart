@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'package:budget_forecast_client/data/api_exception.dart';
 import 'package:budget_forecast_client/data/forecast_api.dart';
+import 'package:budget_forecast_client/data/insights.dart';
 import 'package:budget_forecast_client/data/models.dart';
 import 'package:budget_forecast_client/data/recent_households.dart';
 import 'package:budget_forecast_client/presentation/app.dart';
@@ -54,6 +55,326 @@ const h015Budget = {
     'Transport': 7166.0,
     'Utilities': 4300.0,
   },
+  'isSynthetic': true,
+};
+
+/// GET /insights for h015, October 2026, from the same slice. Its calendar is
+/// close to even and it has no discretionary spending, as most households do.
+const h015Insights = {
+  "userId": "h015",
+  "month": 10,
+  "year": 2026,
+  "historyMonths": 18,
+  "usual": {
+    "months": ["2026-07", "2026-08", "2026-09"],
+    "total": 57159.0,
+    "breakdown": {
+      "Rent": 15247.0,
+      "Groceries": 12971.0,
+      "School Fees": 7273.0,
+      "Transport": 6908.0,
+      "Utilities": 4014.0,
+      "Household Help": 3610.0,
+      "Savings": 3050.0,
+      "Airtime and Data": 2045.0,
+      "Entertainment": 2041.0,
+    },
+  },
+  "calendar": {
+    "months": [
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+    ],
+    "monthParts": [
+      {
+        "firstDay": 1,
+        "lastDay": 7,
+        "share": 0.2424,
+        "evenShare": 0.2303,
+        "standsOut": false,
+        "averageAmount": 15381.42,
+      },
+      {
+        "firstDay": 8,
+        "lastDay": 14,
+        "share": 0.2829,
+        "evenShare": 0.2303,
+        "standsOut": false,
+        "averageAmount": 17956.5,
+      },
+      {
+        "firstDay": 15,
+        "lastDay": 21,
+        "share": 0.243,
+        "evenShare": 0.2303,
+        "standsOut": false,
+        "averageAmount": 15418.58,
+      },
+      {
+        "firstDay": 22,
+        "lastDay": 31,
+        "share": 0.2317,
+        "evenShare": 0.309,
+        "standsOut": false,
+        "averageAmount": 14706.08,
+      },
+    ],
+    "weekdays": [
+      {
+        "weekday": 1,
+        "share": 0.1577,
+        "evenShare": 0.1425,
+        "standsOut": false,
+        "averageAmount": 10009.08,
+      },
+      {
+        "weekday": 2,
+        "share": 0.1714,
+        "evenShare": 0.1425,
+        "standsOut": false,
+        "averageAmount": 10875.33,
+      },
+      {
+        "weekday": 3,
+        "share": 0.1686,
+        "evenShare": 0.1452,
+        "standsOut": false,
+        "averageAmount": 10697.83,
+      },
+      {
+        "weekday": 4,
+        "share": 0.1167,
+        "evenShare": 0.1425,
+        "standsOut": false,
+        "averageAmount": 7407.83,
+      },
+      {
+        "weekday": 5,
+        "share": 0.1078,
+        "evenShare": 0.1424,
+        "standsOut": false,
+        "averageAmount": 6838.75,
+      },
+      {
+        "weekday": 6,
+        "share": 0.1872,
+        "evenShare": 0.1425,
+        "standsOut": false,
+        "averageAmount": 11880.92,
+      },
+      {
+        "weekday": 7,
+        "share": 0.0906,
+        "evenShare": 0.1425,
+        "standsOut": false,
+        "averageAmount": 5752.83,
+      },
+    ],
+  },
+  "discretionary": {
+    "categories": [
+      "Gambling",
+      "Crypto Purchase",
+      "Cash Advance",
+      "Luxury Goods",
+    ],
+    "months": [
+      {
+        "month": "2025-10",
+        "total": 62619.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2025-11",
+        "total": 82066.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2025-12",
+        "total": 63348.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-01",
+        "total": 63693.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-02",
+        "total": 63351.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-03",
+        "total": 60797.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-04",
+        "total": 63080.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-05",
+        "total": 66867.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-06",
+        "total": 59450.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-07",
+        "total": 50999.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-08",
+        "total": 63848.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+      {
+        "month": "2026-09",
+        "total": 61433.0,
+        "amount": 0.0,
+        "share": 0.0,
+        "byCategory": {
+          "Gambling": 0.0,
+          "Crypto Purchase": 0.0,
+          "Cash Advance": 0.0,
+          "Luxury Goods": 0.0,
+        },
+      },
+    ],
+  },
+  "isSynthetic": true,
+};
+
+/// h015 with one month of discretionary spending, to exercise that chart.
+Map<String, Object?> withDiscretionaryIn(String month, double amount) {
+  final trend = h015Insights['discretionary']! as Map<String, Object?>;
+  return {
+    ...h015Insights,
+    'discretionary': {
+      ...trend,
+      'months': [
+        for (final m in trend['months']! as List)
+          if ((m as Map)['month'] == month)
+            {
+              ...m.cast<String, Object?>(),
+              'amount': amount,
+              'share': amount / (m['total'] as num),
+              'byCategory': {
+                'Gambling': 0.0,
+                'Crypto Purchase': 0.0,
+                'Cash Advance': amount,
+                'Luxury Goods': 0.0,
+              },
+            }
+          else
+            m,
+      ],
+    },
+  };
+}
+
+/// GET /insights for an unknown household.
+const insufficientInsights = {
+  'userId': 'nobody',
+  'month': 10,
+  'year': 2026,
+  'historyMonths': 0,
+  'usual': null,
+  'calendar': null,
+  'discretionary': null,
   'isSynthetic': true,
 };
 
@@ -114,18 +435,29 @@ typedef ForecastHandler = FutureOr<Object?> Function(
   int year,
 );
 typedef BudgetHandler = FutureOr<Object?> Function(String userId);
+typedef InsightsHandler = FutureOr<Object?> Function(
+  String userId,
+  int month,
+  int year,
+);
 
 /// Handlers return a JSON map (parsed exactly as the real client parses it),
 /// or throw an [ApiException].
 class FakeForecastApi implements ForecastApi {
-  FakeForecastApi({ForecastHandler? forecast, BudgetHandler? budget})
-    : forecast = forecast ?? ((_, _, _) => h015October),
-      budget = budget ?? ((_) => h015Budget);
+  FakeForecastApi({
+    ForecastHandler? forecast,
+    BudgetHandler? budget,
+    InsightsHandler? insights,
+  }) : forecast = forecast ?? ((_, _, _) => h015October),
+       budget = budget ?? ((_) => h015Budget),
+       insights = insights ?? ((_, _, _) => h015Insights);
 
   ForecastHandler forecast;
   BudgetHandler budget;
+  InsightsHandler insights;
   final forecastCalls = <String>[];
   final budgetCalls = <String>[];
+  final insightsCalls = <String>[];
 
   @override
   Future<ForecastResult> getForecast(String userId, int month, int year) async {
@@ -137,6 +469,12 @@ class FakeForecastApi implements ForecastApi {
   Future<BudgetResult> getBudget(String userId) async {
     budgetCalls.add(userId);
     return BudgetResult.fromJson(await budget(userId));
+  }
+
+  @override
+  Future<InsightsResult> getInsights(String userId, int month, int year) async {
+    insightsCalls.add('$userId $year-$month');
+    return InsightsResult.fromJson(await insights(userId, month, year));
   }
 }
 

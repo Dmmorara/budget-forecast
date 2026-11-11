@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/api_exception.dart';
 import '../data/forecast_api.dart';
+import '../data/insights.dart';
 import '../data/models.dart';
 import '../data/recent_households.dart';
 
@@ -88,6 +89,10 @@ class ForecastController extends ChangeNotifier {
   final forecast = Loadable<ForecastResult>();
   final budget = Loadable<BudgetResult>();
   final comparison = Loadable<List<MonthForecast>>();
+  final insights = Loadable<InsightsResult>();
+
+  /// The month the current insights were loaded for.
+  YearMonth? _insightsMonth;
 
   /// The month the current comparison was loaded around, so it reloads only
   /// when the selected month has actually changed.
@@ -113,6 +118,8 @@ class ForecastController extends ChangeNotifier {
     budget._reset();
     comparison._reset();
     _comparisonCentre = null;
+    insights._reset();
+    _insightsMonth = null;
     final load = loadForecast();
     _recent = await _recentStore.add(userId);
     _notify();
@@ -127,6 +134,8 @@ class ForecastController extends ChangeNotifier {
     budget._reset();
     comparison._reset();
     _comparisonCentre = null;
+    insights._reset();
+    _insightsMonth = null;
     _notify();
   }
 
@@ -174,6 +183,41 @@ class ForecastController extends ChangeNotifier {
           ),
       ];
     });
+  }
+
+  /// Usual spend, spending calendar and discretionary trend for the months
+  /// before the selected one. Reloads only when the month has changed.
+  Future<void> loadInsights({bool force = false}) async {
+    if (!force &&
+        _insightsMonth == _month &&
+        insights.state != LoadState.idle) {
+      return;
+    }
+    _insightsMonth = _month;
+    final month = _month!;
+    await _run(
+      insights,
+      () => _client.getInsights(_householdId!, month.month, month.year),
+    );
+  }
+
+  /// What changed: the forecast against usual spend, per category, largest
+  /// change first. A category in only one of the two counts as 0 in the
+  /// other. Empty until both the forecast and the insights are loaded.
+  List<CategoryChange> changesFromUsual() {
+    final result = forecast.value;
+    final usual = insights.value?.usual;
+    if (result == null || usual == null) return const [];
+    final categories = {...result.breakdown.keys, ...usual.breakdown.keys};
+    final changes = [
+      for (final c in categories)
+        CategoryChange(
+          category: c,
+          forecast: result.breakdown[c] ?? Decimal.zero,
+          usual: usual.breakdown[c] ?? Decimal.zero,
+        ),
+    ]..sort((a, b) => b.change.abs().compareTo(a.change.abs()));
+    return changes;
   }
 
   /// Drawn dashed in the month comparison.
@@ -252,9 +296,24 @@ class ForecastController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    for (final slot in [forecast, budget, comparison]) {
+    for (final slot in [forecast, budget, comparison, insights]) {
       slot._timer?.cancel();
     }
     super.dispose();
   }
+}
+
+/// One category's forecast set against its usual spend.
+class CategoryChange {
+  const CategoryChange({
+    required this.category,
+    required this.forecast,
+    required this.usual,
+  });
+
+  final String category;
+  final Decimal forecast;
+  final Decimal usual;
+
+  Decimal get change => forecast - usual;
 }

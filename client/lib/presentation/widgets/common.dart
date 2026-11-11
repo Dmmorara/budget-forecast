@@ -389,3 +389,55 @@ class FractionBar extends StatelessWidget {
     ),
   );
 }
+
+/// A headline figure: label, value, and one line of context. Neutral by
+/// design: nothing here is coloured as good or bad.
+class StatTile extends StatelessWidget {
+  const StatTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconTile(icon, size: 40),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: textTheme.bodySmall?.copyWith(color: Palette.muted),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(value, style: textTheme.titleLarge),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: textTheme.bodySmall?.copyWith(color: Palette.muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

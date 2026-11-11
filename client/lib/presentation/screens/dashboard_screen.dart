@@ -15,6 +15,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'breakdown_screen.dart';
 import 'budget_screen.dart';
+import 'insights_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -23,6 +24,7 @@ class DashboardScreen extends StatelessWidget {
     required this.onOpenBreakdown,
     required this.onOpenBudget,
     required this.onOpenMonths,
+    required this.onOpenInsights,
   });
 
   /// Desktop layout: breakdown and budget panels side by side beneath the band.
@@ -30,6 +32,7 @@ class DashboardScreen extends StatelessWidget {
   final VoidCallback onOpenBreakdown;
   final VoidCallback onOpenBudget;
   final VoidCallback onOpenMonths;
+  final VoidCallback onOpenInsights;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +42,7 @@ class DashboardScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        _MonthStepper(month: month),
+        MonthStepper(month: month),
         const SizedBox(height: 14),
         const SyntheticNotice(),
         const SizedBox(height: 14),
@@ -57,6 +60,8 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
+            _WhatChangedPreview(onSeeAll: onOpenInsights),
+            const SizedBox(height: 16),
             if (wide)
               _WidePanels(result: result)
             else ...[
@@ -72,6 +77,12 @@ class DashboardScreen extends StatelessWidget {
                       label: 'Category breakdown',
                       detail: 'Every category, largest first',
                       onTap: onOpenBreakdown,
+                    ),
+                    _LinkRow(
+                      icon: Icons.lightbulb_outline_rounded,
+                      label: 'Insights',
+                      detail: 'What changed, when money goes out, and more',
+                      onTap: onOpenInsights,
                     ),
                     _LinkRow(
                       icon: Icons.account_balance_wallet_outlined,
@@ -133,8 +144,8 @@ class ForecastStatus extends StatelessWidget {
   }
 }
 
-class _MonthStepper extends StatelessWidget {
-  const _MonthStepper({required this.month});
+class MonthStepper extends StatelessWidget {
+  const MonthStepper({super.key, required this.month});
   final YearMonth month;
 
   @override
@@ -587,6 +598,46 @@ class _WidePanelsState extends State<_WidePanels> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The three largest changes from usual, on the forecast itself. Loads the
+/// insights for the selected month, and stays out of the way when it cannot:
+/// no history, a failed request, or nothing loaded yet shows nothing.
+class _WhatChangedPreview extends StatefulWidget {
+  const _WhatChangedPreview({required this.onSeeAll});
+  final VoidCallback onSeeAll;
+
+  @override
+  State<_WhatChangedPreview> createState() => _WhatChangedPreviewState();
+}
+
+class _WhatChangedPreviewState extends State<_WhatChangedPreview> {
+  YearMonth? _requested;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<ForecastController>();
+    final month = controller.month!;
+    if (_requested != month) {
+      _requested = month;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<ForecastController>().loadInsights();
+      });
+    }
+    final insights = controller.insights;
+    final usual = insights.value?.usual;
+    if (insights.state != LoadState.loaded || usual == null) {
+      return const SizedBox.shrink();
+    }
+    return WhatChangedCard(
+      changes: controller.changesFromUsual(),
+      usual: usual,
+      month: month,
+      forecastReady: true,
+      limit: 3,
+      onSeeAll: widget.onSeeAll,
     );
   }
 }

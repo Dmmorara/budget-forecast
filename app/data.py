@@ -182,6 +182,18 @@ def load_records() -> tuple[pd.DataFrame, bool]:
 
 
 @functools.lru_cache(maxsize=1)
+def load_transactions() -> tuple[pd.DataFrame, bool]:
+    """
+    `load_records()`, cached for the process lifetime.
+
+    GET /insights needs the timestamps that the monthly totals throw away
+    (which day of the month, which day of the week). Read once, for the same
+    reason as `load_monthly`: the extract is static.
+    """
+    return load_records()
+
+
+@functools.lru_cache(maxsize=1)
 def load_monthly() -> tuple[pd.DataFrame, bool]:
     """
     Monthly totals per (user, month, category), plus the synthetic flag.
