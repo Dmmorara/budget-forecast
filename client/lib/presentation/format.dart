@@ -51,3 +51,23 @@ String thousands(Decimal amount) {
   );
   return '${k.round()}K';
 }
+
+/// "+KSh 6,000" / "−KSh 1,200" / "no change", for a difference.
+String signedKes(Decimal change) {
+  final whole = change.round();
+  if (whole == Decimal.zero) return 'no change';
+  return '${whole > Decimal.zero ? '+' : '\u2212'}${kes(whole.abs())}';
+}
+
+/// "38%": a share already expressed as a fraction.
+String percent(double fraction) => '${(fraction * 100).round()}%';
+
+/// "Jul–Sep 2026" or "Oct 2025–Sep 2026": a span of months.
+String monthSpan(YearMonth first, YearMonth last) {
+  final end = '${monthShort(last)} ${last.year}';
+  if (first == last) return end;
+  final start = first.year == last.year
+      ? monthShort(first)
+      : '${monthShort(first)} ${first.year}';
+  return '$start–$end';
+}

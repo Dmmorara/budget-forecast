@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_exception.dart';
+import 'insights.dart';
 import 'models.dart';
 
 /// What the state layer depends on. Tests supply a fake; nothing in the
@@ -14,6 +15,7 @@ import 'models.dart';
 abstract interface class ForecastApi {
   Future<ForecastResult> getForecast(String userId, int month, int year);
   Future<BudgetResult> getBudget(String userId);
+  Future<InsightsResult> getInsights(String userId, int month, int year);
 }
 
 class ForecastApiClient implements ForecastApi {
@@ -53,6 +55,21 @@ class ForecastApiClient implements ForecastApi {
       () => _client.get(_endpoint('/budget', {'userId': userId})),
     );
     return BudgetResult.fromJson(body);
+  }
+
+  @override
+  Future<InsightsResult> getInsights(String userId, int month, int year) async {
+    // Like /budget, an unknown household is a 200, with every section null.
+    final body = await _send(
+      () => _client.get(
+        _endpoint('/insights', {
+          'userId': userId,
+          'month': '$month',
+          'year': '$year',
+        }),
+      ),
+    );
+    return InsightsResult.fromJson(body);
   }
 
   Future<Object?> _send(Future<http.Response> Function() request) async {

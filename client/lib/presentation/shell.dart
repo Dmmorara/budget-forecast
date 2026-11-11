@@ -1,7 +1,8 @@
 /// The frame around the forecast screens.
 ///
 /// Phone (wireframes 4.12b-4.14e): an app bar whose round back button changes
-/// household, and Forecast / Budget / Months in a bottom navigation bar.
+/// household, and Forecast / Insights / Budget / Months in a bottom
+/// navigation bar. Insights is not in the wireframes; it was added after.
 /// Desktop (4.14f): the same three destinations in a side panel card, with
 /// the household at its foot, and breakdown and budget side by side on
 /// Forecast.
@@ -15,13 +16,14 @@ import 'screens/breakdown_screen.dart';
 import 'screens/budget_screen.dart';
 import 'screens/comparison_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/insights_screen.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
 
 /// At or above this width the side navigation layout is used (NFR-10).
 const wideBreakpoint = 900.0;
 
-enum _Tab { forecast, budget, months }
+enum _Tab { forecast, insights, budget, months }
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -55,6 +57,7 @@ class _HomeShellState extends State<HomeShell> {
   String _title(String householdId) => switch (_tab) {
     _Tab.forecast when _showBreakdown => 'Category breakdown',
     _Tab.forecast => householdId,
+    _Tab.insights => 'Insights',
     _Tab.budget => 'Budget vs forecast',
     _Tab.months => 'Compare months',
   };
@@ -89,7 +92,9 @@ class _HomeShellState extends State<HomeShell> {
       onOpenBreakdown: () => setState(() => _showBreakdown = true),
       onOpenBudget: () => _select(_Tab.budget),
       onOpenMonths: () => _select(_Tab.months),
+      onOpenInsights: () => _select(_Tab.insights),
     ),
+    _Tab.insights => InsightsScreen(wide: wide),
     _Tab.budget => const BudgetScreen(),
     _Tab.months => const ComparisonScreen(),
   };
@@ -119,6 +124,11 @@ class _HomeShellState extends State<HomeShell> {
           icon: Icon(Icons.insights_outlined),
           selectedIcon: Icon(Icons.insights_rounded),
           label: 'Forecast',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.lightbulb_outline_rounded),
+          selectedIcon: Icon(Icons.lightbulb_rounded),
+          label: 'Insights',
         ),
         NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),
@@ -178,12 +188,14 @@ class _HomeShellState extends State<HomeShell> {
                               selected: _tab == tab,
                               icon: switch (tab) {
                                 _Tab.forecast => Icons.insights_rounded,
+                                _Tab.insights => Icons.lightbulb_rounded,
                                 _Tab.budget =>
                                   Icons.account_balance_wallet_rounded,
                                 _Tab.months => Icons.bar_chart_rounded,
                               },
                               label: switch (tab) {
                                 _Tab.forecast => 'Forecast',
+                                _Tab.insights => 'Insights',
                                 _Tab.budget => 'Budget',
                                 _Tab.months => 'Months',
                               },

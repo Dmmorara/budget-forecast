@@ -35,6 +35,16 @@ abstract final class Palette {
   static const over = Color(0xFFA9461F);
   static const overBg = Color(0xFFF7E4DA);
 
+  /// The diverging pair for "vs usual": warm above, cool below, meeting at a
+  /// neutral zero line. Neither is a status colour, and the signed amount is
+  /// always written beside the bar, so direction never rests on colour.
+  /// On white: above 4.1:1, below 5.4:1. OKLab distance between them 20.5
+  /// (17 or more under simulated red-green colour blindness); above sits 11.2
+  /// from [over].
+  static const above = Color(0xFFA6741A);
+  static const below = Color(0xFF3F6F92);
+  static const zeroLine = Color(0xFFB9B7AE);
+
   /// Status: caution notices (volatile, overspend).
   static const cautionBg = Color(0xFFF4EAD0);
   static const cautionInk = Color(0xFF5A430E);
