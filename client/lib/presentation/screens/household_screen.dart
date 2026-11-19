@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models.dart';
+import '../../state/demo_controller.dart';
 import '../../state/forecast_controller.dart';
 import '../format.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'demo_login_screen.dart';
 
 class HouseholdScreen extends StatefulWidget {
   const HouseholdScreen({super.key});
@@ -60,6 +62,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
   @override
   Widget build(BuildContext context) {
     final recent = context.watch<ForecastController>().recentHouseholds;
+    final demoAvailable = context.watch<DemoController?>() != null;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -242,6 +245,24 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     ),
                   ),
                 ),
+                if (demoAvailable) ...[
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    key: const Key('open-demo'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DemoLoginScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    label: const Text('Sign up or log in to a demo household'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Palette.onForestMuted),
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                ],
                 if (recent.isNotEmpty) ...[
                   const SizedBox(height: 32),
                   Text(

@@ -30,7 +30,7 @@ Two deliberate decisions are recorded here so they are not re-litigated later:
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Risk flags are a closed set, not free text. A downstream team branching on
 # this value needs to know what it can receive.
@@ -200,3 +200,67 @@ class InsightsResponse(BaseModel):
     calendar: Optional[SpendingCalendar] = None
     discretionary: Optional[DiscretionaryTrend] = None
     isSynthetic: bool = True
+
+
+# ── demo households (app/demo.py) ──
+#
+# For presentations only: a presenter signs a household up, declares a budget
+# and builds its history a month at a time. Additive endpoints under /demo;
+# POST /forecast, GET /budget and GET /insights answer for a demo household
+# exactly as for a sandbox one. Nothing here is real, and every response says so.
+
+class DemoLogin(BaseModel):
+    """in of POST /demo/signup and POST /demo/login. A name and a PIN, not authentication."""
+
+    name: str = Field(min_length=1, max_length=40)
+    pin: str = Field(pattern=r"^\d{4,8}$", description="4 to 8 digits")
+
+
+class DemoBudget(BaseModel):
+    allocated: dict[CategoryName, float] = Field(max_length=40)
+
+    @field_validator("allocated")
+    @classmethod
+    def _sensible(cls, allocated: dict[str, float]) -> dict[str, float]:
+        for category, amount in allocated.items():
+            if not category.strip() or len(category) > 40:
+                raise ValueError(f"category name {category!r} must be 1-40 characters")
+            if not 0 <= amount <= 10_000_000:
+                raise ValueError(f"{category}: amount must be between 0 and 10,000,000")
+        return allocated
+
+
+class DemoSpend(BaseModel):
+    """One transaction in the month in progress."""
+
+    category: CategoryName = Field(min_length=1, max_length=40)
+    amount: float = Field(gt=0.0, le=10_000_000)
+    day: Optional[int] = Field(default=None, ge=1, le=31, description="Day of the month; 15 if absent")
+
+
+class DemoSimulate(BaseModel):
+    months: int = Field(default=1, ge=1, le=12)
+
+
+class DemoHouseholdResponse(BaseModel):
+    """
+    A demo household. `month`/`year` is the month in progress: the one to
+    forecast, and the one a typed-in spend lands in. `historyMonths` is how
+    many months have been completed before it.
+    """
+
+    userId: str
+    name: str
+    month: int = Field(ge=1, le=12)
+    year: int
+    historyMonths: int = Field(ge=0)
+    budget: dict[CategoryName, float] = Field(default_factory=dict)
+    spentThisMonth: dict[CategoryName, float] = Field(default_factory=dict)
+    isSynthetic: bool = True
+
+
+class DemoCategoriesResponse(BaseModel):
+    """The categories a demo budget can use, and a typical sandbox budget for each."""
+
+    categories: list[CategoryName]
+    typical: dict[CategoryName, float] = Field(default_factory=dict)

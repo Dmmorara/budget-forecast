@@ -62,16 +62,23 @@ class ForecastController extends ChangeNotifier {
   ForecastController({
     required ForecastApi api,
     required RecentHouseholds recent,
-    this.dataLastMonth,
+    YearMonth? dataLastMonth,
     this.wakingAfter = const Duration(seconds: 5),
   }) : _client = api,
-       _recentStore = recent;
+       _recentStore = recent,
+       _configuredLastMonth = dataLastMonth;
 
   final ForecastApi _client;
   final RecentHouseholds _recentStore;
 
   /// From --dart-define=DATA_LAST_MONTH; see AppConfig for the limitation.
-  final YearMonth? dataLastMonth;
+  final YearMonth? _configuredLastMonth;
+
+  /// A demo household's own last complete month, which replaces the
+  /// configured one while it is selected: its data ends somewhere else.
+  YearMonth? _householdLastMonth;
+
+  YearMonth? get dataLastMonth => _householdLastMonth ?? _configuredLastMonth;
 
   /// IR-04: when to tell the user the service is waking up.
   final Duration wakingAfter;
@@ -111,25 +118,39 @@ class ForecastController extends ChangeNotifier {
   }
 
   /// Idle -> Loading. Clears everything belonging to the previous household.
-  Future<void> selectHousehold(String id, YearMonth month) async {
+  /// [lastMonth] is a demo household's last complete month.
+  Future<void> selectHousehold(
+    String id,
+    YearMonth month, {
+    YearMonth? lastMonth,
+  }) async {
     final userId = id.trim();
     _householdId = userId;
+    final load = reload(month, lastMonth: lastMonth);
+    _recent = await _recentStore.add(userId);
+    _notify();
+    await load;
+  }
+
+  /// The same household, after its data changed underneath the screens (a
+  /// demo household was given a budget or another month): everything loaded
+  /// so far is stale, so it is dropped and the forecast is fetched again.
+  Future<void> reload(YearMonth month, {YearMonth? lastMonth}) {
     _month = month;
+    _householdLastMonth = lastMonth;
     budget._reset();
     comparison._reset();
     _comparisonCentre = null;
     insights._reset();
     _insightsMonth = null;
-    final load = loadForecast();
-    _recent = await _recentStore.add(userId);
-    _notify();
-    await load;
+    return loadForecast();
   }
 
   /// Loaded -> Idle ("change household").
   void changeHousehold() {
     _householdId = null;
     _month = null;
+    _householdLastMonth = null;
     forecast._reset();
     budget._reset();
     comparison._reset();

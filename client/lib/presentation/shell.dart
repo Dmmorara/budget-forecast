@@ -3,6 +3,7 @@
 /// Phone (wireframes 4.12b-4.14e): an app bar whose round back button changes
 /// household, and Forecast / Insights / Budget / Months in a bottom
 /// navigation bar. Insights is not in the wireframes; it was added after.
+/// A demo household also gets Simulate, where its history is built up.
 /// Desktop (4.14f): the same three destinations in a side panel card, with
 /// the household at its foot, and breakdown and budget side by side on
 /// Forecast.
@@ -11,11 +12,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../state/demo_controller.dart';
 import '../state/forecast_controller.dart';
 import 'screens/breakdown_screen.dart';
 import 'screens/budget_screen.dart';
 import 'screens/comparison_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/demo_screen.dart';
 import 'screens/insights_screen.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
@@ -23,7 +26,26 @@ import 'widgets/common.dart';
 /// At or above this width the side navigation layout is used (NFR-10).
 const wideBreakpoint = 900.0;
 
-enum _Tab { forecast, insights, budget, months }
+enum _Tab {
+  forecast('Forecast', Icons.insights_outlined, Icons.insights_rounded),
+  insights(
+    'Insights',
+    Icons.lightbulb_outline_rounded,
+    Icons.lightbulb_rounded,
+  ),
+  budget(
+    'Budget',
+    Icons.account_balance_wallet_outlined,
+    Icons.account_balance_wallet_rounded,
+  ),
+  months('Months', Icons.bar_chart_outlined, Icons.bar_chart_rounded),
+  simulate('Simulate', Icons.science_outlined, Icons.science_rounded);
+
+  const _Tab(this.label, this.icon, this.selectedIcon);
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+}
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -34,6 +56,24 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   _Tab _tab = _Tab.forecast;
+
+  @override
+  void initState() {
+    super.initState();
+    // A demo household starts where its history is built.
+    if (_isDemo(context.read<ForecastController>().householdId)) {
+      _tab = _Tab.simulate;
+    }
+  }
+
+  bool _isDemo(String? householdId) =>
+      context.read<DemoController?>()?.isShowing(householdId) ?? false;
+
+  /// Simulate only for a demo household.
+  List<_Tab> _tabs(bool demo) => [
+    for (final tab in _Tab.values)
+      if (tab != _Tab.simulate || demo) tab,
+  ];
 
   /// On a phone the breakdown is a step inside the Forecast tab (4.13c keeps
   /// Forecast selected), so back returns to the dashboard, not the household.
@@ -49,17 +89,23 @@ class _HomeShellState extends State<HomeShell> {
   void _back() {
     if (_showBreakdown) {
       setState(() => _showBreakdown = false);
+      return;
+    }
+    final controller = context.read<ForecastController>();
+    if (_isDemo(controller.householdId)) {
+      context.read<DemoController>().signOut();
     } else {
-      context.read<ForecastController>().changeHousehold();
+      controller.changeHousehold();
     }
   }
 
-  String _title(String householdId) => switch (_tab) {
+  String _title(String householdId, _Tab tab) => switch (tab) {
     _Tab.forecast when _showBreakdown => 'Category breakdown',
     _Tab.forecast => householdId,
     _Tab.insights => 'Insights',
     _Tab.budget => 'Budget vs forecast',
     _Tab.months => 'Compare months',
+    _Tab.simulate => 'Simulate',
   };
 
   @override
@@ -67,6 +113,10 @@ class _HomeShellState extends State<HomeShell> {
     final householdId = context.select<ForecastController, String>(
       (c) => c.householdId ?? '',
     );
+    final demo =
+        context.watch<DemoController?>()?.isShowing(householdId) ?? false;
+    final tabs = _tabs(demo);
+    final tab = tabs.contains(_tab) ? _tab : _Tab.forecast;
 
     return PopScope(
       canPop: false,
@@ -76,16 +126,16 @@ class _HomeShellState extends State<HomeShell> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= wideBreakpoint;
-          final body = _body(wide);
+          final body = _body(tab, wide);
           return wide
-              ? _wideScaffold(householdId, body)
-              : _narrowScaffold(householdId, body);
+              ? _wideScaffold(householdId, tabs, tab, body)
+              : _narrowScaffold(householdId, tabs, tab, body);
         },
       ),
     );
   }
 
-  Widget _body(bool wide) => switch (_tab) {
+  Widget _body(_Tab tab, bool wide) => switch (tab) {
     _Tab.forecast when _showBreakdown && !wide => const BreakdownScreen(),
     _Tab.forecast => DashboardScreen(
       wide: wide,
@@ -97,9 +147,15 @@ class _HomeShellState extends State<HomeShell> {
     _Tab.insights => InsightsScreen(wide: wide),
     _Tab.budget => const BudgetScreen(),
     _Tab.months => const ComparisonScreen(),
+    _Tab.simulate => DemoScreen(onOpenForecast: () => _select(_Tab.forecast)),
   };
 
-  Widget _narrowScaffold(String householdId, Widget body) => Scaffold(
+  Widget _narrowScaffold(
+    String householdId,
+    List<_Tab> tabs,
+    _Tab tab,
+    Widget body,
+  ) => Scaffold(
     appBar: AppBar(
       toolbarHeight: 68,
       leadingWidth: 72,
@@ -111,40 +167,31 @@ class _HomeShellState extends State<HomeShell> {
           onPressed: _back,
         ),
       ),
-      title: Text(_title(householdId), overflow: TextOverflow.ellipsis),
+      title: Text(_title(householdId, tab), overflow: TextOverflow.ellipsis),
       // Balances the leading button so the title stays centred.
       actions: const [SizedBox(width: 72)],
     ),
     body: SafeArea(child: body),
     bottomNavigationBar: NavigationBar(
-      selectedIndex: _tab.index,
-      onDestinationSelected: (i) => _select(_Tab.values[i]),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.insights_outlined),
-          selectedIcon: Icon(Icons.insights_rounded),
-          label: 'Forecast',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.lightbulb_outline_rounded),
-          selectedIcon: Icon(Icons.lightbulb_rounded),
-          label: 'Insights',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-          label: 'Budget',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.bar_chart_outlined),
-          selectedIcon: Icon(Icons.bar_chart_rounded),
-          label: 'Months',
-        ),
+      selectedIndex: tabs.indexOf(tab),
+      onDestinationSelected: (i) => _select(tabs[i]),
+      destinations: [
+        for (final t in tabs)
+          NavigationDestination(
+            icon: Icon(t.icon),
+            selectedIcon: Icon(t.selectedIcon),
+            label: t.label,
+          ),
       ],
     ),
   );
 
-  Widget _wideScaffold(String householdId, Widget body) {
+  Widget _wideScaffold(
+    String householdId,
+    List<_Tab> tabs,
+    _Tab tab,
+    Widget body,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
@@ -180,26 +227,15 @@ class _HomeShellState extends State<HomeShell> {
                             ],
                           ),
                         ),
-                        for (final tab in _Tab.values)
+                        for (final t in tabs)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 6),
                             child: _SideItem(
-                              key: Key('side-${tab.name}'),
-                              selected: _tab == tab,
-                              icon: switch (tab) {
-                                _Tab.forecast => Icons.insights_rounded,
-                                _Tab.insights => Icons.lightbulb_rounded,
-                                _Tab.budget =>
-                                  Icons.account_balance_wallet_rounded,
-                                _Tab.months => Icons.bar_chart_rounded,
-                              },
-                              label: switch (tab) {
-                                _Tab.forecast => 'Forecast',
-                                _Tab.insights => 'Insights',
-                                _Tab.budget => 'Budget',
-                                _Tab.months => 'Months',
-                              },
-                              onTap: () => _select(tab),
+                              key: Key('side-${t.name}'),
+                              selected: tab == t,
+                              icon: t.selectedIcon,
+                              label: t.label,
+                              onTap: () => _select(t),
                             ),
                           ),
                         const Spacer(),

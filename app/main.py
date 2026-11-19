@@ -10,12 +10,33 @@ Do not change the shape without agreeing it with: U-CS 38 (spend-advisor), U-CS 
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.schemas import BudgetResponse, InsightsResponse, Request, Response
-from app.service import FORECASTER, budget_for, handle, insights
+from app.demo import DemoError
+from app.schemas import (
+    BudgetResponse,
+    DemoBudget,
+    DemoCategoriesResponse,
+    DemoHouseholdResponse,
+    DemoLogin,
+    DemoSimulate,
+    DemoSpend,
+    InsightsResponse,
+    Request,
+    Response,
+)
+from app.service import (
+    DEMO,
+    FORECASTER,
+    budget_for,
+    demo_categories,
+    demo_response,
+    demo_set_budget,
+    handle,
+    insights,
+)
 
 app = FastAPI(title="U-CS 37 — budget-forecast", version="0.1.0")
 
@@ -107,6 +128,60 @@ def insights_endpoint(
     the three sections null, as POST /forecast answers insufficient_history.
     """
     return insights(userId, month, year)
+
+
+# ── demo households, for presentations (app/demo.py) ──
+#
+# Additive. Every route is POST or GET, so the CORS configuration above needs
+# no new method.
+
+
+def _demo(action):
+    try:
+        return demo_response(action())
+    except DemoError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+
+@app.get("/demo/categories", response_model=DemoCategoriesResponse)
+def demo_categories_endpoint() -> DemoCategoriesResponse:
+    """Categories a demo budget can use, with a typical sandbox budget for each."""
+    return demo_categories()
+
+
+@app.post("/demo/signup", response_model=DemoHouseholdResponse)
+def demo_signup(body: DemoLogin) -> DemoHouseholdResponse:
+    """A new demo household. 409 if the name is taken."""
+    return _demo(lambda: DEMO.signup(body.name, body.pin))
+
+
+@app.post("/demo/login", response_model=DemoHouseholdResponse)
+def demo_login(body: DemoLogin) -> DemoHouseholdResponse:
+    """An existing demo household. 401 if the name and PIN do not match."""
+    return _demo(lambda: DEMO.login(body.name, body.pin))
+
+
+@app.get("/demo/households/{userId}", response_model=DemoHouseholdResponse)
+def demo_household(userId: str) -> DemoHouseholdResponse:
+    return _demo(lambda: DEMO.get(userId))
+
+
+@app.post("/demo/households/{userId}/budget", response_model=DemoHouseholdResponse)
+def demo_budget(userId: str, body: DemoBudget) -> DemoHouseholdResponse:
+    """Replace the household's budget."""
+    return _demo(lambda: demo_set_budget(userId, body.allocated))
+
+
+@app.post("/demo/households/{userId}/spend", response_model=DemoHouseholdResponse)
+def demo_spend(userId: str, body: DemoSpend) -> DemoHouseholdResponse:
+    """One transaction in the month in progress."""
+    return _demo(lambda: DEMO.add_spend(userId, body.category, body.amount, body.day))
+
+
+@app.post("/demo/households/{userId}/simulate", response_model=DemoHouseholdResponse)
+def demo_simulate(userId: str, body: DemoSimulate) -> DemoHouseholdResponse:
+    """Fill in the month in progress from the budget and move to the next, `months` times."""
+    return _demo(lambda: DEMO.simulate(userId, body.months))
 
 
 # Serve the demo console at the root, so the deployed URL shows something a

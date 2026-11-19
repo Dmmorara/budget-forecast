@@ -3,6 +3,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../state/demo_controller.dart';
 import '../state/forecast_controller.dart';
 import 'screens/household_screen.dart';
 import 'shell.dart';
@@ -12,16 +13,23 @@ import 'theme.dart';
 /// Switching on the controller rather than pushing routes keeps Figure 4.8's
 /// "change household -> Idle" a single state change.
 class BudgetForecastApp extends StatelessWidget {
-  const BudgetForecastApp({super.key, required this.controller});
+  const BudgetForecastApp({super.key, required this.controller, this.demo});
 
   final ForecastController controller;
+
+  /// Demo households (data/demo.dart). Without one, the app offers none.
+  final DemoController? demo;
 
   static ThemeData theme() => appTheme();
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: controller,
+    final demo = this.demo;
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: controller),
+        if (demo != null) ChangeNotifierProvider.value(value: demo),
+      ],
       child: MaterialApp(
         title: 'Budget forecast',
         theme: theme(),

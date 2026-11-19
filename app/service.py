@@ -37,6 +37,7 @@ from pathlib import Path
 import pandas as pd
 
 from app.data import SANDBOX_IS_SYNTHETIC, load_budgets, load_monthly, load_transactions
+from app.demo import DemoHousehold, DemoStore, is_demo
 from app.forecaster import (
     MIN_MONTHS_FOR_FORECAST,
     SHIPPED_ARTEFACT,
@@ -45,7 +46,14 @@ from app.forecaster import (
     Forecast,
 )
 from app.insights import insights_for
-from app.schemas import BudgetResponse, InsightsResponse, Request, Response
+from app.schemas import (
+    BudgetResponse,
+    DemoCategoriesResponse,
+    DemoHouseholdResponse,
+    InsightsResponse,
+    Request,
+    Response,
+)
 
 log = logging.getLogger("budget_forecast")
 if not log.handlers:
@@ -106,6 +114,12 @@ class ServedForecaster:
                               "answered", user_id, year, month)
         return self.blend.forecast(history, user_id, year, month)
 
+    def set_household_budget(self, user_id: str, allocated: dict[str, float]) -> None:
+        """A demo household's budget, declared after startup, for both forecasters."""
+        self.blend.set_household_budget(user_id, allocated)
+        if self.model is not None:
+            self.model.set_household_budget(user_id, allocated)
+
 
 def select_forecaster(
     artefact: Path = SHIPPED_ARTEFACT, budgets: pd.DataFrame | None = None
@@ -135,6 +149,29 @@ def select_forecaster(
 FORECASTER = select_forecaster()
 
 
+def _first_demo_month() -> tuple[int, int]:
+    """The month after the sandbox data ends, which is after the model's training period too."""
+    monthly, _ = load_monthly()
+    following = int((monthly["year"] * 12 + monthly["month"] - 1).max()) + 1
+    return following // 12, following % 12 + 1
+
+
+# Demo households (app/demo.py). In memory, for presentations only.
+DEMO = DemoStore(_first_demo_month())
+
+
+def _monthly_for(user_id: str):
+    """
+    The history a request is answered from. A demo household's history is
+    its own and nobody else's, and the forecasters only ever read the
+    requested household's rows, so it is served alone rather than appended to
+    the sandbox frame.
+    """
+    if is_demo(user_id):
+        return DEMO.monthly(user_id), True
+    return load_monthly()
+
+
 def _history_before(monthly, year: int, month: int):
     """
     Only months strictly before the one being forecast.
@@ -152,7 +189,7 @@ def _history_before(monthly, year: int, month: int):
 
 def handle(body: Request, forecaster: ServedForecaster | None = None) -> Response:
     forecaster = forecaster or FORECASTER
-    monthly, is_synthetic = load_monthly()
+    monthly, is_synthetic = _monthly_for(body.userId)
 
     known_users = set(monthly["user_id"].unique())
     if body.userId not in known_users:
@@ -195,6 +232,15 @@ def budget_for(user_id: str) -> BudgetResponse:
 
     Budgets only ever come from the sandbox file, so the flag is the sandbox's.
     """
+    if is_demo(user_id):
+        household = DEMO.find(user_id)
+        allocated = household.budget if household else {}
+        return BudgetResponse(
+            userId=user_id,
+            allocated={c: round(v, 2) for c, v in allocated.items()},
+            isSynthetic=True,
+        )
+
     budgets = load_budgets()
     rows = budgets[budgets["user_id"] == user_id]
     return BudgetResponse(
@@ -206,5 +252,46 @@ def budget_for(user_id: str) -> BudgetResponse:
 
 def insights(user_id: str, month: int, year: int) -> InsightsResponse:
     """GET /insights: see app/insights.py for what each section means."""
-    records, is_synthetic = load_transactions()
+    if is_demo(user_id):
+        records, is_synthetic = DEMO.transactions(user_id), True
+    else:
+        records, is_synthetic = load_transactions()
     return insights_for(records, user_id, year, month, is_synthetic=is_synthetic)
+
+
+# ── demo households (app/demo.py) ──
+
+
+def demo_response(household: DemoHousehold) -> DemoHouseholdResponse:
+    return DemoHouseholdResponse(
+        userId=household.user_id,
+        name=household.name,
+        month=household.month,
+        year=household.year,
+        historyMonths=household.history_months,
+        budget={c: round(v, 2) for c, v in household.budget.items()},
+        spentThisMonth=household.spent_this_month(),
+    )
+
+
+def demo_set_budget(user_id: str, allocated: dict[str, float]) -> DemoHousehold:
+    """The store and both forecasters, together, so a forecast never uses a stale budget."""
+    household = DEMO.set_budget(user_id, allocated)
+    FORECASTER.set_household_budget(user_id, household.budget)
+    return household
+
+
+def demo_categories() -> DemoCategoriesResponse:
+    """
+    The categories a demo budget can use, and a typical budget for each: the
+    median the sandbox households declared, among those that declared one.
+    """
+    monthly, _ = load_monthly()
+    budgets = load_budgets()
+    declared = budgets[budgets["allocated"] > 0]
+    typical = declared.groupby("category")["allocated"].median().round(-2)
+    categories = sorted(set(monthly["category"]) | set(budgets["category"]))
+    return DemoCategoriesResponse(
+        categories=categories,
+        typical={c: float(v) for c, v in typical.items()},
+    )
