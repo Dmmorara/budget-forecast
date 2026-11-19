@@ -4,6 +4,7 @@ import 'config.dart';
 import 'data/forecast_api.dart';
 import 'data/recent_households.dart';
 import 'presentation/app.dart';
+import 'state/demo_controller.dart';
 import 'state/forecast_controller.dart';
 
 void main() {
@@ -15,10 +16,12 @@ void main() {
     return;
   }
 
+  final client = ForecastApiClient(baseUrl: apiUrl);
   final controller = ForecastController(
-    api: ForecastApiClient(baseUrl: apiUrl),
+    api: client,
     recent: PreferencesRecentHouseholds(),
     dataLastMonth: config.dataLastMonth,
   )..loadRecent();
-  runApp(BudgetForecastApp(controller: controller));
+  final demo = DemoController(api: client, forecast: controller);
+  runApp(BudgetForecastApp(controller: controller, demo: demo));
 }
