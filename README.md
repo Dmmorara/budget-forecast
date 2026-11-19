@@ -103,6 +103,7 @@ app/
                  ExtraTreesForecaster (the fitted model; not yet served)
   features.py    the model's features: one definition for fitting and serving
   insights.py    GET /insights: usual spend, spending calendar, discretionary trend
+  demo.py        demo households for presentations: sign up, budget, simulated months
   evaluate.py    rolling-origin time split, metrics, noise floor
   model.py       the shipped forecaster: fixed obligations + habitual rates
   data.py        real sandbox CSVs if present in data/, synthetic otherwise
@@ -127,6 +128,7 @@ tests/
   test_model.py         the model, paired across populations
   test_insights.py      GET /insights: nothing from the target month, the median,
                         an even spread not reported as a habit
+  test_demo.py          demo households: login, budget, history building up to a forecast
   test_model_pins.py    every model manifest's scikit-learn, numpy and pandas
                         versions match requirements.txt; a bump fails CI
 BASELINE.md      the number to beat, and where the removable error lives
@@ -256,6 +258,38 @@ evenly". With a two-standard-error bar, 10 of the 60 deployed households showed 
 of 12 months), and an evenly spread simulated household is flagged 7 times in 200.
 Discretionary spending is rare: 42 of the 60 households have none in the last 12
 months.
+
+### Demo households, for presentations (`/demo/*`)
+
+A presenter can sign a new household up, declare its budget, and build its history a
+month at a time to show the forecast appearing. In the Flutter app: **Sign up or log in
+to a demo household** on the first screen, then the **Simulate** tab.
+
+| route | does |
+|---|---|
+| `GET /demo/categories` | categories a budget can use, with a typical sandbox budget for each |
+| `POST /demo/signup` `{name, pin}` | a new household, `demo-xxxxxx`; 409 if the name is taken |
+| `POST /demo/login` `{name, pin}` | the household again; 401 if name and PIN do not match |
+| `GET /demo/households/{userId}` | its state: month in progress, months of history, budget |
+| `POST /demo/households/{userId}/budget` `{allocated}` | replaces the budget |
+| `POST /demo/households/{userId}/spend` `{category, amount, day?}` | one transaction in the month in progress |
+| `POST /demo/households/{userId}/simulate` `{months}` | fills the month in progress from the budget, moves on |
+
+What to know before presenting:
+
+- **It is not authentication.** A name and a 4-8 digit PIN (stored hashed), so a presenter
+  can come back to a household. Every figure is synthetic and says so.
+- **It lives in memory.** Households vanish when the service restarts, which on Render's
+  free plan means after about 15 idle minutes. Wake the service first, and expect to sign
+  up again.
+- **The first month in progress is the month after the sandbox data ends** (October 2026),
+  which is after the model's training period. Months 1-2 answer `insufficient_history`
+  from the budget blend; from the third simulated month the fitted model answers.
+- **Simulated months are reproducible.** The generator is seeded by household and month,
+  and gives each household a steady lean over or under budget per category, so the
+  forecast does not just echo the budget.
+- `POST /forecast`, `GET /budget` and `GET /insights` answer for a demo household exactly
+  as for a sandbox one. The contract is unchanged; all demo routes are additive.
 
 ## Run it
 

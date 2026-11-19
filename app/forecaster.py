@@ -451,6 +451,12 @@ class BudgetBlendForecaster:
                 for r in budgets.itertuples()
             }
 
+    def set_household_budget(self, user_id: str, allocated: dict[str, float]) -> None:
+        """Replace one household's budget: a demo household declares it after startup."""
+        user_id = str(user_id)
+        self._budget = {k: v for k, v in self._budget.items() if k[0] != user_id}
+        self._budget.update({(user_id, str(c)): float(v) for c, v in allocated.items()})
+
     def forecast(
         self, history: pd.DataFrame, user_id: str, year: int, month: int
     ) -> Forecast:
@@ -662,6 +668,10 @@ class ExtraTreesForecaster:
         self._offsets = (float(chosen["lower"]), float(chosen["upper"]))
         self._budget = budget_lookup(budgets) if budgets is not None else {}
         self.name = f"model:{artefact.stem}"
+
+    def set_household_budget(self, user_id: str, allocated: dict[str, float]) -> None:
+        """Replace one household's budget: a demo household declares it after startup."""
+        self._budget[str(user_id)] = {str(c): float(v) for c, v in allocated.items()}
 
     def forecast(
         self, history: pd.DataFrame, user_id: str, year: int, month: int
